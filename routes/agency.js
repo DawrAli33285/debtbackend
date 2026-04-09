@@ -1,6 +1,7 @@
 const express = require('express');
 const router  = express.Router();
-const { getAgencies, getAgencyById, createAgency } = require('../controller/agencyController');
+const { getAgencies, getAgencyById, createAgency, getClaimById } = require('../controller/agencyController');
+
 const { getAgencyAssignments, updateAssignmentStatus, register, login, getAgencyMe } = require('../controller/useragency');
 const auth = require('../middleware/auth');
 const agencyAuth = require('../middleware/agencyauth');
@@ -18,4 +19,7 @@ router.patch('/assignments/status',  agencyAuth, updateAssignmentStatus);
 router.get('/',     auth, getAgencies);
 router.get('/:id',  auth, getAgencyById);
 
+
+
+router.get('/claim/:id',  getClaimById);
 module.exports = router;

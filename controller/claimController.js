@@ -5,7 +5,6 @@ exports.createClaim = async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
 
-
     const now = new Date();
     if (user.billing_cycle_end && now > user.billing_cycle_end) {
       user.claims_used_this_month = 0;
@@ -14,7 +13,6 @@ exports.createClaim = async (req, res) => {
       await user.save();
     }
 
-    
     if (
       user.subscription_plan !== 'unlimited' &&
       user.claims_used_this_month >= user.monthly_claim_limit
@@ -27,19 +25,27 @@ exports.createClaim = async (req, res) => {
       });
     }
 
- 
     const {
       debtor_type, debtor_name, debtor_email,
-      debtor_phone, debtor_address, amount, due_date, description,
+      debtor_phone, debtor_address, amount,
+      due_date, past_due_period, description,
     } = req.body;
+
+ 
+    const documents = (req.files || []).map(file => ({
+      filename: file.originalname,
+      path: file.filename,       // just the filename — served via /uploads/:filename
+      mimetype: file.mimetype,
+    }));
 
     const claim = await Claim.create({
       user_id: req.user.id,
       debtor_type, debtor_name, debtor_email,
-      debtor_phone, debtor_address, amount, due_date, description,
+      debtor_phone, debtor_address, amount,
+      due_date, past_due_period, description,
+      documents,
     });
 
-   
     user.claims_used_this_month += 1;
     await user.save();
 
@@ -50,6 +56,7 @@ exports.createClaim = async (req, res) => {
     });
 
   } catch (err) {
+    console.log(err.message)
     res.status(500).json({ message: err.message });
   }
 };

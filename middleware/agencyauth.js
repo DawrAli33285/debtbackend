@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 
 const agencyAuth = (req, res, next) => {
   try {
+ 
     const header = req.headers.authorization;
     if (!header || !header.startsWith('Bearer ')) {
       return res.status(401).json({ message: 'No token provided' });

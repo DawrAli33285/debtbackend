@@ -170,9 +170,9 @@ const getAgencyMe = async (req, res) => {
   }
 };
 
+
 const getAgencyAssignments = async (req, res) => {
   try {
-    // ✅ was req.agencyUserId — fixed to req.agencyUser.id
     const agencyUser = await AgencyUser.findById(req.agencyUser.id);
     if (!agencyUser) return res.status(401).json({ message: 'Unauthorized' });
 
@@ -180,12 +180,15 @@ const getAgencyAssignments = async (req, res) => {
       .populate('claim_id', 'debtor_name debtor_email debtor_phone amount due_date description status debtor_type')
       .sort({ assigned_at: -1 });
 
-    res.json({ assignments });
+    const filtered = assignments.filter(a => a.claim_id?.status !== 'denied');
+
+    res.json({ assignments: filtered });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Server error' });
   }
 };
+
 
 const updateAssignmentStatus = async (req, res) => {
   try {

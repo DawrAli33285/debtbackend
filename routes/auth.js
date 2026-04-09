@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { register, login } = require('../controller/authController');
+const { register, login, getUser } = require('../controller/authController');
 const auth = require('../middleware/auth');
 const User=require('../models/user')
 
@@ -20,4 +20,6 @@ router.patch('/accept-terms', auth, async (req, res) => {
     const user = await User.findById(req.user.id).select('-password_hash');
     res.json({ user });
   });
+
+  router.get('/getUser',auth,getUser)
 module.exports = router;

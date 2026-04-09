@@ -1,6 +1,6 @@
 const Agency = require('../models/agency');
 
-
+const Claim =require('../models/claim')
 
 exports.createAgency = async(req,res)=>{
     try {
@@ -35,3 +35,18 @@ exports.getAgencyById = async (req, res) => {
 
 
 
+
+
+
+exports.getClaimById = async (req, res) => {
+  try {
+ 
+    const claim = await Claim.findOne({ _id: req.params.id });
+    if (!claim) return res.status(404).json({ message: 'Claim not found' });
+
+    res.status(200).json({ claim });
+  } catch (err) {
+    console.log(err.message)
+    res.status(500).json({ message: err.message });
+  }
+};

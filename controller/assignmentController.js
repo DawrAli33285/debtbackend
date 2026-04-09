@@ -40,13 +40,7 @@ exports.createAssignment = async (req, res) => {
     });
 
     const existingRoom = await ChatRoom.findOne({ claim_id, agency_id });
-    if (!existingRoom) {
-      await ChatRoom.create({
-        claim_id:  assignment.claim_id,
-        agency_id: assignment.agency_id,
-        user_id:   req.user.id,  // ← was req.userId
-      });
-    }
+  
 
     
     claim.status = 'assigned';

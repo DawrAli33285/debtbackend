@@ -13,7 +13,7 @@ const getRooms = async (req, res) => {
       : { agency_id: req.senderId };
 
     const rooms = await ChatRoom.find(filter)
-      .populate('claim_id',  'debtor_name debtor_email amount status')
+      .populate('claim_id',  'debtor_name debtor_email amount status description')
       .populate('agency_id', 'name')
       .populate('user_id',   'business_name contact_name')
       .sort({ last_message_at: -1 });

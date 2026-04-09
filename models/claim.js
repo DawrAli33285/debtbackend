@@ -12,9 +12,11 @@ const claimSchema = new mongoose.Schema({
     description:    { type: String },
     status: {
       type: String,
-      enum: ['submitted', 'assigned', 'in_progress', 'closed'],
+      enum: ['submitted', 'assigned', 'in_progress', 'closed', 'denied'],
       default: 'submitted'
     },
+    documents:        [{ filename: String, path: String, mimetype: String, uploadedAt: { type: Date, default: Date.now } }],
+    past_due_period:  { type: String, enum: ['3_months', '6_months', '8_months'], default: null },
   }, { timestamps: true });
 
 module.exports = mongoose.model('Claim', claimSchema);
