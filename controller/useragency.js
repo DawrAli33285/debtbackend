@@ -180,7 +180,7 @@ const getAgencyAssignments = async (req, res) => {
       .populate('claim_id', 'debtor_name debtor_email debtor_phone amount due_date description status debtor_type')
       .sort({ assigned_at: -1 });
 
-    const filtered = assignments.filter(a => a.claim_id?.status !== 'denied');
+    const filtered = assignments
 
     res.json({ assignments: filtered });
   } catch (err) {

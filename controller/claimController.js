@@ -1,6 +1,7 @@
 const Claim = require('../models/claim');
 const User=require('../models/user')
-
+const path=require('path')
+const fs=require('fs')
 exports.createClaim = async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
@@ -81,3 +82,92 @@ exports.getClaimById = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+
+
+
+
+exports.updateClaim = async (req, res) => {
+  try {
+    const {
+      debtor_name, debtor_email, debtor_phone,
+      debtor_address, debtor_type, amount, due_date, description
+    } = req.body;
+
+    const claim = await Claim.findOne({ _id: req.params.id });
+
+
+    if (!claim) {
+      return res.status(404).json({ message: 'Claim not found or unauthorized' });
+    }
+
+    // Update only the editable fields
+    claim.debtor_name    = debtor_name    ?? claim.debtor_name;
+    claim.debtor_email   = debtor_email   ?? claim.debtor_email;
+    claim.debtor_phone   = debtor_phone   ?? claim.debtor_phone;
+    claim.debtor_address = debtor_address ?? claim.debtor_address;
+    claim.debtor_type    = debtor_type    ?? claim.debtor_type;
+    claim.amount         = amount         ?? claim.amount;
+    claim.due_date       = due_date       ?? claim.due_date;
+    claim.description    = description    ?? claim.description;
+
+    await claim.save();
+
+    res.json({ claim });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+
+
+exports.deleteDocument = async (req, res) => {
+  try {
+    const claim = await Claim.findOne({ _id: req.params.id, user_id: req.user.id });
+    if (!claim) return res.status(404).json({ message: 'Claim not found' });
+ 
+    const doc = claim.documents.id(req.params.docId);
+    if (!doc) return res.status(404).json({ message: 'Document not found' });
+ 
+    // Delete file from disk
+    const filePath = path.join('/tmp/public/files/files', doc.path);
+    fs.unlink(filePath, (err) => {
+      if (err) console.warn('Could not delete file from disk:', err.message);
+    });
+ 
+    doc.deleteOne();
+    await claim.save();
+ 
+    res.json({ claim });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+ 
+// POST /api/claims/:id/documents
+exports.addDocuments = async (req, res) => {
+  try {
+    const claim = await Claim.findOne({ _id: req.params.id, user_id: req.user.id });
+    if (!claim) return res.status(404).json({ message: 'Claim not found' });
+ 
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ message: 'No files uploaded' });
+    }
+ 
+    const newDocs = req.files.map(file => ({
+      filename: file.originalname,
+      path: file.filename,
+      mimetype: file.mimetype,
+    }));
+ 
+    claim.documents.push(...newDocs);
+    await claim.save();
+ 
+    res.json({ claim });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+

@@ -4,8 +4,14 @@ const messageSchema = new mongoose.Schema({
   room_id:     { type: mongoose.Schema.Types.ObjectId, ref: 'ChatRoom', required: true },
   sender_type: { type: String, enum: ['user', 'agency'], required: true },
   sender_id:   { type: mongoose.Schema.Types.ObjectId, required: true },
-  text:        { type: String, required: true },
+  text:        { type: String, default: '' },
+  attachment:  {
+    url:          { type: String },
+    original_name: { type: String },
+    mime_type:    { type: String },
+  },
 }, { timestamps: true });
+
 
 const chatRoomSchema = new mongoose.Schema({
   claim_id:   { type: mongoose.Schema.Types.ObjectId, ref: 'Claim',    required: true },

@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
-const { createClaim, getClaims, getClaimById } = require('../controller/claimController');
+const { createClaim, getClaims, addDocuments,deleteDocument,getClaimById,updateClaim } = require('../controller/claimController');
 const auth = require('../middleware/auth');
 const fs=require('fs')
 const storage = multer.diskStorage({
@@ -36,5 +36,10 @@ const upload = multer({
 router.post('/create', auth, upload.array('documents', 5), createClaim);
 router.get('/', auth, getClaims);
 router.get('/:id', auth, getClaimById);
+router.put('/:id', auth, updateClaim);
+
+
+router.post('/:id/documents',                   auth, upload.array('documents', 5), addDocuments);
+router.delete('/:id/documents/:docId',          auth, deleteDocument);
 
 module.exports = router;

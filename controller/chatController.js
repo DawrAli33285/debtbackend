@@ -58,35 +58,69 @@ const getMessages = async (req, res) => {
 
 /* POST /api/chat/:roomId/messages
    Body: { text } */
-const sendMessage = async (req, res) => {
-  try {
-    const { text } = req.body;
-    if (!text?.trim()) return res.status(400).json({ message: 'Text is required' });
-
-    const room = await ChatRoom.findById(req.params.roomId);
-    if (!room) return res.status(404).json({ message: 'Room not found' });
-
-    const belongs = req.senderType === 'user'
-      ? room.user_id.toString()   === req.senderId.toString()
-      : room.agency_id.toString() === req.senderId.toString();
-    if (!belongs) return res.status(403).json({ message: 'Access denied' });
-
-    const message = await Message.create({
-      room_id:     room._id,
-      sender_type: req.senderType,
-      sender_id:   req.senderId,
-      text:        text.trim(),
-    });
-
-    // Update last_message_at on the room
-    await ChatRoom.findByIdAndUpdate(room._id, { last_message_at: new Date() });
-
-    res.status(201).json({ message });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Server error' });
-  }
-};
+   const sendMessage = async (req, res) => {
+    try {
+      const { text } = req.body;
+      if (!text?.trim()) return res.status(400).json({ message: 'Text is required' });
+  
+      const room = await ChatRoom.findById(req.params.roomId);
+      if (!room) return res.status(404).json({ message: 'Room not found' });
+  
+      const belongs = req.senderType === 'user'
+        ? room.user_id.toString()   === req.senderId.toString()
+        : room.agency_id.toString() === req.senderId.toString();
+      if (!belongs) return res.status(403).json({ message: 'Access denied' });
+  
+      const message = await Message.create({
+        room_id:     room._id,
+        sender_type: req.senderType,
+        sender_id:   req.senderId,
+        text:        text.trim(),
+      });
+  
+      await ChatRoom.findByIdAndUpdate(room._id, { last_message_at: new Date() });
+      res.status(201).json({ message });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: 'Server error' });
+    }
+  };
+  
+  /* POST /api/chat/:roomId/upload */
+  const sendMessageWithFile = async (req, res) => {
+    try {
+      const room = await ChatRoom.findById(req.params.roomId);
+      if (!room) return res.status(404).json({ message: 'Room not found' });
+  
+      const belongs = req.senderType === 'user'
+        ? room.user_id.toString()   === req.senderId.toString()
+        : room.agency_id.toString() === req.senderId.toString();
+      if (!belongs) return res.status(403).json({ message: 'Access denied' });
+  
+      if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+  
+      const fileUrl = `${process.env.backendurl}/uploads/${req.file.filename}`;
+  
+      const message = await Message.create({
+        room_id:     room._id,
+        sender_type: req.senderType,
+        sender_id:   req.senderId,
+        text:        req.body.text?.trim() || '',
+        attachment: {
+          url:           fileUrl,
+          original_name: req.file.originalname,
+          mime_type:     req.file.mimetype,
+        },
+      });
+  
+      await ChatRoom.findByIdAndUpdate(room._id, { last_message_at: new Date() });
+      res.status(201).json({ message });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: 'Server error' });
+    }
+  };
+  
 
 /* POST /api/chat/rooms
    Creates a chat room when a claim is assigned — called internally or by admin
@@ -107,4 +141,4 @@ const createRoom = async (req, res) => {
   }
 };
 
-module.exports = { getRooms, getMessages, sendMessage, createRoom };
+module.exports = { getRooms, sendMessageWithFile,getMessages, sendMessage, createRoom };
