@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const authRoutes = require('./routes/auth');
 const cors=require('cors')
 const claimRoutes = require('./routes/claims');
+const adminRoutes=require('./routes/admin')
 const businessSubscriptionRoutes=require('./routes/businesssubscription')
 const agencySubscriptionRoutes=require('./routes/agencysubscription')
 require('dotenv').config();
@@ -22,4 +23,5 @@ app.use('/api/assignments', require('./routes/assignment'));
 app.use('/api/subscription',agencySubscriptionRoutes)
 app.use('/api/businessSubscription',businessSubscriptionRoutes)
 app.use('/api/agency/claims', require('./routes/agencyclaim'));
+app.use('/api/admin',adminRoutes)
 app.listen(5000, () => console.log('Server running on port 5000'));

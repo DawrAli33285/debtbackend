@@ -57,3 +57,35 @@ exports.denyClaim = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 };
+
+
+// ADD to existing controller file
+
+exports.reopenClaim = async (req, res) => {
+  try {
+    const claim = await Claim.findById(req.params.id);
+    if (!claim) return res.status(404).json({ message: 'Claim not found' });
+    if (claim.status !== 'denied') return res.status(400).json({ message: 'Only denied claims can be reopened' });
+
+    claim.status = 'in_progress';
+    await claim.save();
+    res.json({ claim });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+exports.closeClaim = async (req, res) => {
+  try {
+    const claim = await Claim.findById(req.params.id);
+    if (!claim) return res.status(404).json({ message: 'Claim not found' });
+    if (claim.status !== 'in_progress') return res.status(400).json({ message: 'Only in-progress claims can be closed' });
+
+    claim.status = 'closed';
+    await claim.save();
+    res.json({ claim });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
