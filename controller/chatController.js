@@ -1,6 +1,11 @@
 const { Message, ChatRoom } = require('../models/chat');
 const Assignment            = require('../models/assignment');
 
+let io;
+const getIO = () => {
+  if (!io) io = require('../index').io;
+  return io;
+};
 // ── Determine who is calling (user or agency) ────────────────────────────────
 // Attach req.authUser before calling these — see notes in route file below
 
@@ -42,7 +47,6 @@ const getMessages = async (req, res) => {
     const room = await ChatRoom.findById(req.params.roomId);
     if (!room) return res.status(404).json({ message: 'Room not found' });
 
-    // Make sure the caller belongs to this room
     const belongs = req.senderType === 'user'
       ? room.user_id.toString()   === req.senderId.toString()
       : room.agency_id.toString() === req.senderId.toString();
@@ -114,6 +118,18 @@ const getMessages = async (req, res) => {
       });
   
       await ChatRoom.findByIdAndUpdate(room._id, { last_message_at: new Date() });
+  
+      // Broadcast file message to both sides in real-time
+      try {
+        getIO().to(req.params.roomId).emit('receive_message', {
+          ...message.toObject(),
+          sender:     message.sender_type,
+          created_at: message.createdAt,
+        });
+      } catch (e) {
+        console.error('Socket emit error:', e);
+      }
+  
       res.status(201).json({ message });
     } catch (err) {
       console.error(err);

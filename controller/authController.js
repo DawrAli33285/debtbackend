@@ -78,6 +78,35 @@ exports.login = async (req, res) => {
 };
 
 
+exports.resetPassword = async (req, res) => {
+  try {
+    const { email, newPassword } = req.body;
+ 
+    if (!email || !newPassword) {
+      return res.status(400).json({ message: 'Email and new password are required.' });
+    }
+ 
+    if (newPassword.length < 8) {
+      return res.status(400).json({ message: 'Password must be at least 8 characters.' });
+    }
+ 
+    const user = await User.findOne({ email });
+    if (!user) {
+      // Generic message — don't reveal whether email exists
+      return res.status(404).json({ message: 'No account found with that email address.' });
+    }
+ 
+    const password_hash = await bcrypt.hash(newPassword, 12);
+    user.password_hash  = password_hash;
+    await user.save();
+ 
+    return res.status(200).json({ message: 'Password reset successfully.' });
+  } catch (err) {
+    console.error('reset-password error:', err);
+    return res.status(500).json({ message: 'Server error. Please try again.' });
+  }
+};
+
 
 
 

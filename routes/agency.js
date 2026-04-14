@@ -2,7 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const { getAgencies, getAgencyById, createAgency, getClaimById } = require('../controller/agencyController');
 
-const { getAgencyAssignments, updateAssignmentStatus, register, login, getAgencyMe } = require('../controller/useragency');
+const { getAgencyAssignments, updateAssignmentStatus, resetPassword,register, login, getAgencyMe } = require('../controller/useragency');
 const auth = require('../middleware/auth');
 const agencyAuth = require('../middleware/agencyauth');
 
@@ -10,6 +10,8 @@ const agencyAuth = require('../middleware/agencyauth');
 router.post('/register', register);
 router.post('/login',    login);
 router.post('/create',   auth, createAgency);
+
+router.post('/reset-password', resetPassword);
 
 router.get('/me',                    agencyAuth, getAgencyMe);
 router.get('/assignments',           agencyAuth, getAgencyAssignments);

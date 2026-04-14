@@ -81,10 +81,44 @@ const register = async (req, res) => {
   }
 };
 
+
+const resetPassword = async (req, res) => {
+  try {
+    const { email, newPassword } = req.body;
+ 
+    if (!email || !newPassword) {
+      return res.status(400).json({ message: 'Email and new password are required.' });
+    }
+ 
+    if (newPassword.length < 8) {
+      return res.status(400).json({ message: 'Password must be at least 8 characters.' });
+    }
+ 
+    const agencyUser = await AgencyUser.findOne({ email });
+    if (!agencyUser) {
+      // Return 200 deliberately to avoid email enumeration
+      return res.status(200).json({ message: 'If that email exists, the password has been reset.' });
+    }
+ 
+    if (!agencyUser.is_active) {
+      return res.status(403).json({ message: 'This account has been deactivated.' });
+    }
+ 
+    const password_hash = await bcrypt.hash(newPassword, 12);
+    agencyUser.password_hash = password_hash;
+    await agencyUser.save();
+ 
+    res.status(200).json({ message: 'Password reset successfully.' });
+  } catch (err) {
+    console.error('agency reset-password error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
 // ─────────────────────────────────────────
 // POST /api/agency-auth/login
 // ─────────────────────────────────────────
 const login = async (req, res) => {
+
   try {
     const { email, password } = req.body;
 
@@ -221,4 +255,4 @@ const updateAssignmentStatus = async (req, res) => {
 
 
 
-module.exports = { register, getAgencyMe,login,getAgencyAssignments,updateAssignmentStatus };
+module.exports = { register, resetPassword,getAgencyMe,login,getAgencyAssignments,updateAssignmentStatus };

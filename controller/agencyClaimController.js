@@ -65,8 +65,7 @@ exports.reopenClaim = async (req, res) => {
   try {
     const claim = await Claim.findById(req.params.id);
     if (!claim) return res.status(404).json({ message: 'Claim not found' });
-    if (claim.status !== 'denied') return res.status(400).json({ message: 'Only denied claims can be reopened' });
-
+   
     claim.status = 'in_progress';
     await claim.save();
     res.json({ claim });
