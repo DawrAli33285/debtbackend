@@ -25,7 +25,7 @@ exports.register = async (req, res) => {
     }
 
   
-    const { business_name, contact_name, email, password } = req.body;
+    const { business_name, contact_name, email, password, ein } = req.body;
 
     const existing = await User.findOne({ email });
     if (existing) return res.status(400).json({ message: 'Email already registered' });
@@ -37,6 +37,7 @@ exports.register = async (req, res) => {
       contact_name,
       email,
       password_hash,
+      ein
     });
 
     const token = jwt.sign({ id: user._id, role: 'user' }, process.env.JWT_SECRET, {

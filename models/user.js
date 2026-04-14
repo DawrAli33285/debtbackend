@@ -13,5 +13,6 @@ billing_cycle_end:        { type: Date },
 terms_accept:{type:Boolean,default:false},
 signature_name:   { type: String },
 accepted_at:      { type: Date },
+ein:{type:String}
   }, { timestamps: true });
 module.exports = mongoose.model('User', userSchema);

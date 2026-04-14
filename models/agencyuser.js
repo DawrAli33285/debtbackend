@@ -7,6 +7,7 @@ const agencyUserSchema = new mongoose.Schema({
   password_hash: { type: String, required: true },
   role:          { type: String, enum: ['owner', 'member'], default: 'owner' },
   is_active:     { type: Boolean, default: true },
+  ein:{type:String}
 }, { timestamps: true });
 
 module.exports = mongoose.model('AgencyUser', agencyUserSchema);
