@@ -20,6 +20,7 @@ const register = async (req, res) => {
       name,
       email,
       password,
+      ein
     } = req.body;
 
     if (!agency_name || !name || !email || !password) {
@@ -48,6 +49,7 @@ const register = async (req, res) => {
       email,
       password_hash,
       role: 'owner',
+      ein
     });
 
     const token = jwt.sign(
