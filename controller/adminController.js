@@ -7,6 +7,7 @@ const Assignment=require('../models/assignment')
 const bcrypt = require('bcrypt');
 const Agency = require('../models/agency');
 const AgencyUser = require('../models/agencyuser');
+const Subscription = require('../models/subscription'); // ✅ add this — adjust path if needed
 
 module.exports.getDashboardStats = async (req, res) => {
     try {
@@ -307,26 +308,62 @@ module.exports.adminLogin = async (req, res) => {
   module.exports.updateUser = async (req, res) => {
     try {
       const { id } = req.params;
-      const { email, password, credits } = req.body;
+      const { email, password, credits, business_name, contact_name, subscription_plan, claimsLimit } = req.body;
+  
+      console.log('📥 updateUser called:', { id, subscription_plan, claimsLimit }); // ✅ add this
   
       const updateFields = {};
-      if (email)   updateFields.email   = email;
+      if (email)    updateFields.email    = email;
+      if (business_name !== undefined) updateFields.business_name = business_name;
+      if (contact_name  !== undefined) updateFields.contact_name  = contact_name;
       if (credits !== undefined) updateFields.credits = parseFloat(credits) || 0;
       if (password) {
         updateFields.password_hash = await bcrypt.hash(password, 10);
       }
   
-      const user = await User.findByIdAndUpdate(id, updateFields, { new: true, select: '-password_hash' });
+      // ✅ Fix: use !== undefined instead of truthy check so "starter" isn't skipped
+      if (subscription_plan !== undefined && subscription_plan !== null) {
+        const planLimits = { starter: 3, growth: 10, unlimited: 999999 };
+        const limit = claimsLimit ?? planLimits[subscription_plan] ?? 0;
   
-      if (!user) {
-        return res.status(404).json({ success: false, message: 'User not found' });
+        const now = new Date();
+        const periodEnd = new Date(now);
+        periodEnd.setMonth(periodEnd.getMonth() + 1);
+  
+        updateFields.subscription_plan      = subscription_plan;
+        updateFields.monthly_claim_limit    = limit;
+        updateFields.claims_used_this_month = 0;
+        updateFields.billing_cycle_start    = now;
+        updateFields.billing_cycle_end      = periodEnd;
+  
+        console.log('📝 Updating subscription to:', subscription_plan, '| limit:', limit); // ✅
+  
+        const subResult = await Subscription.findOneAndUpdate(
+          { user: id },
+          {
+            user:                id,
+            plan:                subscription_plan,
+            status:              'active',
+            billing_cycle_start: now,
+            billing_cycle_end:   periodEnd,
+          },
+          { upsert: true, new: true }
+        );
+        console.log('📋 Subscription upsert result:', subResult); // ✅
       }
+  
+      const user = await User.findByIdAndUpdate(id, updateFields, { new: true, select: '-password_hash' });
+      console.log('👤 Updated user subscription_plan:', user?.subscription_plan); // ✅
+  
+      if (!user) return res.status(404).json({ success: false, message: 'User not found' });
   
       res.json({ success: true, user });
     } catch (err) {
+      console.error('❌ updateUser error:', err);
       res.status(500).json({ success: false, message: err.message });
     }
   };
+
   
   // DELETE user
   module.exports.deleteUser = async (req, res) => {
@@ -405,17 +442,31 @@ module.exports.adminLogin = async (req, res) => {
   module.exports.updateAgency = async (req, res) => {
     try {
       const { id } = req.params;
-      const { name, contact_email, contact_phone, password } = req.body;
+      const { name, contact_email, contact_phone, password, plan_type } = req.body;
   
       const agencyFields = {};
       if (name !== undefined)          agencyFields.name          = name;
       if (contact_email !== undefined) agencyFields.contact_email = contact_email;
       if (contact_phone !== undefined) agencyFields.contact_phone = contact_phone;
   
+      // ✅ Admin assigns plan directly — no Stripe
+      if (plan_type) {
+        const PLAN_CLAIM_LIMITS = { starter: 25, growth: 100, professional: 500, enterprise: 99999 };
+  
+        const now = new Date();
+        const periodEnd = new Date(now);
+        periodEnd.setMonth(periodEnd.getMonth() + 1);
+  
+        agencyFields.plan_type               = plan_type;
+        agencyFields.claim_limit             = PLAN_CLAIM_LIMITS[plan_type] ?? 0;
+        agencyFields.claims_used             = 0;
+        agencyFields.subscription_start_date = now;
+        agencyFields.subscription_end_date   = periodEnd;
+      }
+  
       const agency = await Agency.findByIdAndUpdate(id, agencyFields, { new: true });
       if (!agency) return res.status(404).json({ success: false, message: 'Agency not found' });
   
-      // Update password on the AgencyUser (owner) if provided
       if (password) {
         const password_hash = await bcrypt.hash(password, 10);
         await AgencyUser.findOneAndUpdate(
@@ -429,7 +480,6 @@ module.exports.adminLogin = async (req, res) => {
       res.status(500).json({ success: false, message: err.message });
     }
   };
-  
   // DELETE agency (also deletes its users)
   module.exports.deleteAgency = async (req, res) => {
     try {
