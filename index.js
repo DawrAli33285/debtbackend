@@ -27,15 +27,15 @@ app.use(cors());
 connection;
 
 app.use('/uploads', express.static('/tmp/public/files/files'));
-app.use('/api/auth', authRoutes);
-app.use('/api/claims', claimRoutes);
-app.use('/api/chat', require('./routes/chat'));
-app.use('/api/agencies', require('./routes/agency'));
-app.use('/api/assignments', require('./routes/assignment'));
-app.use('/api/subscription', agencySubscriptionRoutes);
-app.use('/api/businessSubscription', businessSubscriptionRoutes);
-app.use('/api/agency/claims', require('./routes/agencyclaim'));
-app.use('/api/admin', adminRoutes);
+app.use('/auth', authRoutes);
+app.use('/claims', claimRoutes);
+app.use('/chat', require('./routes/chat'));
+app.use('/agencies', require('./routes/agency'));
+app.use('/assignments', require('./routes/assignment'));
+app.use('/subscription', agencySubscriptionRoutes);
+app.use('/businessSubscription', businessSubscriptionRoutes);
+app.use('/agency/claims', require('./routes/agencyclaim'));
+app.use('/admin', adminRoutes);
 
 // ── Socket.IO ────────────────────────────────────────────────────────────────
 io.on('connection', (socket) => {
