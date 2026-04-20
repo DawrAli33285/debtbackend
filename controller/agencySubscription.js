@@ -1,52 +1,129 @@
 const Agency = require('../models/agency')
 const AgencyUser = require('../models/agencyuser')
+const axios = require('axios')
+
+const PAYPAL_BASE = process.env.PAYPAL_BASE_URL || 'https://api-m.sandbox.paypal.com'
 
 const PLAN_CLAIM_LIMITS = {
     starter:      25,
-    growth:       100,
-    professional: 500,
-    enterprise:   99999,
+    growth:       75,
+    professional: 150,
+    enterprise:   999999,
 }
 
-const toDate = (unixTimestamp) => {
-    if (!unixTimestamp) return null
-    const d = new Date(unixTimestamp * 1000)
-    return isNaN(d.getTime()) ? null : d
+const getPayPalToken = async () => {
+    const res = await axios.post(
+        `${PAYPAL_BASE}/v1/oauth2/token`,
+        'grant_type=client_credentials',
+        {
+            auth: {
+                username: process.env.PAYPAL_CLIENT_ID,
+                password: process.env.PAYPAL_CLIENT_SECRET,
+            },
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        }
+    )
+    return res.data.access_token
+}
+
+const ensureProduct = async (token, planName) => {
+    const res = await axios.post(
+        `${PAYPAL_BASE}/v1/catalogs/products`,
+        {
+            name: `Agency ${planName.charAt(0).toUpperCase() + planName.slice(1)} Plan`,
+            type: 'SERVICE',
+            category: 'SOFTWARE',
+        },
+        { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+    )
+    return res.data.id
+}
+
+const createBillingPlan = async (token, productId, amount, planName) => {
+    const res = await axios.post(
+        `${PAYPAL_BASE}/v1/billing/plans`,
+        {
+            product_id: productId,
+            name: `Agency ${planName.charAt(0).toUpperCase() + planName.slice(1)} Annual`,
+            billing_cycles: [
+                {
+                    frequency: { interval_unit: 'YEAR', interval_count: 1 },
+                    tenure_type: 'REGULAR',
+                    sequence: 1,
+                    total_cycles: 0,
+                    pricing_scheme: {
+                        fixed_price: {
+                            value: String(amount),
+                            currency_code: 'USD',
+                        },
+                    },
+                },
+            ],
+            payment_preferences: {
+                auto_bill_outstanding: true,
+                setup_fee_failure_action: 'CONTINUE',
+                payment_failure_threshold: 3,
+            },
+        },
+        { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+    )
+    return res.data.id
+}
+
+const cancelPayPalSubscription = async (token, subscriptionId) => {
+    await axios.post(
+        `${PAYPAL_BASE}/v1/billing/subscriptions/${subscriptionId}/cancel`,
+        { reason: 'User upgraded to a new plan' },
+        { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+    )
 }
 
 const calculatePeriodEnd = () => {
     const date = new Date()
-    date.setMonth(date.getMonth() + 1)
+    date.setFullYear(date.getFullYear() + 1)
     return date
 }
 
-const createSubscription = async (req, res) => {
-    const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY)
+// ── GET PLAN ID (called before PayPal button creates subscription) ──
+const getPlanId = async (req, res) => {
+    console.log("GETPLANID")
     try {
-        const {
-            amount,
-            currency = 'usd',
-            paymentMethod,
-            planName,
-        } = req.body
-
-        if (!paymentMethod) {
-            return res.status(400).json({ message: 'Payment method is required' })
-        }
+        const { amount, planName } = req.body
 
         if (!['starter', 'growth', 'professional', 'enterprise'].includes(planName)) {
             return res.status(400).json({ message: 'Invalid plan name' })
         }
 
-        if (!amount) {
-            return res.status(400).json({ message: 'Amount is required' })
-        }
-
-        // Get agencyUser from token, then fetch the linked Agency
         const agencyUser = await AgencyUser.findById(req.agencyUser.id)
         if (!agencyUser) return res.status(404).json({ message: 'Agency user not found' })
+        if (agencyUser.role !== 'owner') {
+            return res.status(403).json({ message: 'Only agency owners can manage subscriptions' })
+        }
 
-        // Only owner can manage subscriptions
+        const token     = await getPayPalToken()
+        const productId = await ensureProduct(token, planName)
+        const planId    = await createBillingPlan(token, productId, amount, planName)
+
+        return res.status(200).json({ planId })
+
+    } catch (error) {
+        console.error(error.message)
+        res.status(500).json({ message: 'Server error', error: error.message })
+    }
+}
+
+// ── CONFIRM SUBSCRIPTION (called after user approves on PayPal) ──
+const confirmSubscription = async (req, res) => {
+    console.log("CONFIRM SUBSCRIPTION")
+    try {
+        const { subscriptionId, planName, claimsLimit } = req.body
+
+        if (!subscriptionId) {
+            return res.status(400).json({ message: 'Subscription ID required' })
+        }
+
+        const agencyUser = await AgencyUser.findById(req.agencyUser.id)
+        if (!agencyUser) return res.status(404).json({ message: 'Agency user not found' })
         if (agencyUser.role !== 'owner') {
             return res.status(403).json({ message: 'Only agency owners can manage subscriptions' })
         }
@@ -54,72 +131,19 @@ const createSubscription = async (req, res) => {
         const agency = await Agency.findById(agencyUser.agency_id)
         if (!agency) return res.status(404).json({ message: 'Agency not found' })
 
-        const claimLimit = PLAN_CLAIM_LIMITS[planName]
-        const billingEmail = agency.contact_email || agencyUser.email
+        const token = await getPayPalToken()
 
-        // ── UPGRADE ──
-        if (agency.stripeSubscriptionId) {
-            const stripeSubscription = await stripe.subscriptions.retrieve(agency.stripeSubscriptionId)
-
-            await stripe.paymentMethods.attach(paymentMethod, {
-                customer: agency.stripeCustomerId,
-            })
-
-            await stripe.customers.update(agency.stripeCustomerId, {
-                invoice_settings: { default_payment_method: paymentMethod },
-            })
-
-            const newPrice = await stripe.prices.create({
-                unit_amount: Math.round(amount * 100),
-                currency,
-                recurring: { interval: 'month' },
-                product_data: { name: `Agency ${planName.charAt(0).toUpperCase() + planName.slice(1)} Plan` },
-            })
-
-            const updatedStripeSubscription = await stripe.subscriptions.update(stripeSubscription.id, {
-                items: [{ id: stripeSubscription.items.data[0].id, price: newPrice.id }],
-                default_payment_method: paymentMethod,
-                proration_behavior: 'create_prorations',
-            })
-
-            const periodEnd = toDate(updatedStripeSubscription.current_period_end) ?? calculatePeriodEnd()
-
-            await Agency.findByIdAndUpdate(agency._id, {
-                plan_type:               planName,
-                claim_limit:             claimLimit,
-                claims_used:             0,
-                subscription_start_date: new Date(),
-                subscription_end_date:   periodEnd,
-            })
-
-            return res.status(200).json({
-                message:               'Subscription upgraded successfully',
-                plan:                  planName,
-                subscription_end_date: periodEnd,
-            })
+        // Cancel old subscription if upgrading
+        if (agency.paypalSubscriptionId) {
+            try {
+                await cancelPayPalSubscription(token, agency.paypalSubscriptionId)
+            } catch (e) {
+                console.warn('Could not cancel old PayPal subscription:', e.message)
+            }
         }
 
-        // ── NEW SUBSCRIPTION ──
-        const customer = await stripe.customers.create({
-            email: billingEmail,
-            payment_method: paymentMethod,
-            invoice_settings: { default_payment_method: paymentMethod },
-        })
-
-        const price = await stripe.prices.create({
-            unit_amount: Math.round(amount * 100),
-            currency,
-            recurring: { interval: 'month' },
-            product_data: { name: `Agency ${planName.charAt(0).toUpperCase() + planName.slice(1)} Plan` },
-        })
-
-        const stripeSubscription = await stripe.subscriptions.create({
-            customer: customer.id,
-            items: [{ price: price.id }],
-            default_payment_method: paymentMethod,
-        })
-
-        const periodEnd = toDate(stripeSubscription.current_period_end) ?? calculatePeriodEnd()
+        const periodEnd = calculatePeriodEnd()
+        const claimLimit = claimsLimit ?? PLAN_CLAIM_LIMITS[planName]
 
         await Agency.findByIdAndUpdate(agency._id, {
             plan_type:               planName,
@@ -127,12 +151,11 @@ const createSubscription = async (req, res) => {
             claims_used:             0,
             subscription_start_date: new Date(),
             subscription_end_date:   periodEnd,
-            stripeCustomerId:        customer.id,
-            stripeSubscriptionId:    stripeSubscription.id,
+            paypalSubscriptionId:    subscriptionId,
         })
 
-        res.status(201).json({
-            message:               'Subscription created successfully',
+        return res.status(200).json({
+            message:               'Subscription confirmed',
             plan:                  planName,
             subscription_end_date: periodEnd,
         })
@@ -141,7 +164,26 @@ const createSubscription = async (req, res) => {
         console.error(error.message)
         res.status(500).json({ message: 'Server error', error: error.message })
     }
-
 }
 
-module.exports = { createSubscription }
+// ── WEBHOOK ──
+const handlePayPalWebhook = async (req, res) => {
+    try {
+        const event = req.body
+        if (event.event_type === 'BILLING.SUBSCRIPTION.ACTIVATED') {
+            const subscriptionId = event.resource?.id
+            if (subscriptionId) {
+                await Agency.findOneAndUpdate(
+                    { paypalSubscriptionId: subscriptionId },
+                    { subscription_status: 'active' }
+                )
+            }
+        }
+        res.status(200).json({ received: true })
+    } catch (err) {
+        console.error('Webhook error:', err.message)
+        res.status(500).json({ message: 'Webhook error' })
+    }
+}
+
+module.exports = { getPlanId, confirmSubscription, handlePayPalWebhook }

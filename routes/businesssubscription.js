@@ -1,8 +1,10 @@
 const express = require('express')
 const router = express.Router()
-const { createSubscription } = require('../controller/businesssubscription')
+const {getPlanId,confirmSubscription} = require('../controller/businesssubscription')
 const auth = require('../middleware/auth');
 
-router.post('/create', auth, createSubscription)
+
+router.post('/get-plan-id',  getPlanId);
+router.post('/confirm',     auth, confirmSubscription);
 
 module.exports = router

@@ -3,24 +3,20 @@ const jwt        = require('jsonwebtoken');
 const Agency     = require('../models/agency');
 const AgencyUser = require('../models/agencyuser');
 const Assignment=require('../models/assignment')
+const AgencyAgreement = require('../models/agency_agreement_acceptance')
 
-// ─────────────────────────────────────────
-// POST /api/agency-auth/register
-// Creates an Agency profile + owner AgencyUser in one step
-// ─────────────────────────────────────────
 const register = async (req, res) => {
   try {
     const {
-      // agency profile
       agency_name,
       states_covered,
       specialties,
       fee_percentage,
-      // owner login
       name,
       email,
       password,
-      ein
+      ein,
+      agreement_version,  // new
     } = req.body;
 
     if (!agency_name || !name || !email || !password) {
@@ -40,16 +36,31 @@ const register = async (req, res) => {
       fee_percentage: fee_percentage || 0,
     });
 
-    // 2. Create the owner AgencyUser linked to that agency
+    // 2. Create the owner AgencyUser
     const password_hash = await bcrypt.hash(password, 12);
-
     const agencyUser = await AgencyUser.create({
       agency_id:     agency._id,
       name,
       email,
       password_hash,
       role: 'owner',
-      ein
+      ein,
+    });
+
+    // 3. Save agreement acceptance record
+    const ip_address =
+      req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+      req.socket?.remoteAddress ||
+      'unknown';
+
+    const user_agent = req.headers['user-agent'] || 'unknown';
+
+    await AgencyAgreement.create({
+      agency_id:         agency._id,
+      agreement_version: agreement_version || 'v1.0',
+      accepted_at:       new Date(),
+      ip_address,
+      user_agent,
     });
 
     const token = jwt.sign(
@@ -82,7 +93,6 @@ const register = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
-
 
 const resetPassword = async (req, res) => {
   try {
