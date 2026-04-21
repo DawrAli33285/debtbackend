@@ -4,25 +4,23 @@ const Claim      = require('../models/claim');
 const Referral   = require('../models/referal');
 const { ChatRoom } = require('../models/chat');
 
-
 exports.createAssignment = async (req, res) => {
   try {
     const { claim_id, agency_id, method = 'manual' } = req.body;
 
-    
-    const claim = await Claim.findOne({ _id: claim_id, user_id: req.user.id });
+    const claim = await Claim.findOne({ _id: claim_id });
     if (!claim) return res.status(404).json({ message: 'Claim not found' });
 
-    
-    if (claim.status !== 'submitted') {
-      return res.status(400).json({ message: 'Claim is already assigned or closed' });
+    // ✅ Allow assignment from submitted OR after connection_denied (reassignment)
+    if (!['submitted', 'connection_denied', 'denied'].includes(claim.status)) {
+      return res.status(400).json({
+        message: `Claim cannot be assigned. Current status: "${claim.status}". Only submitted or previously denied claims can be assigned.`,
+      });
     }
 
-    
     const agency = await Agency.findById(agency_id);
     if (!agency) return res.status(404).json({ message: 'Agency not found' });
 
-   
     if (agency.claims_used >= agency.claim_limit) {
       return res.status(403).json({
         message: 'Agency has reached its claim limit. Please select another agency.',
@@ -32,21 +30,28 @@ exports.createAssignment = async (req, res) => {
       });
     }
 
+    // ✅ If reassigning after denial, deactivate old assignment
+    await Assignment.updateMany(
+      { claim_id, status: { $ne: 'completed' } },
+      { status: 'replaced' }
+    );
+
     const assignment = await Assignment.create({
       claim_id,
       agency_id,
       assigned_by: req.user.id,
       method,
+      status: 'active',
     });
 
-    const existingRoom = await ChatRoom.findOne({ claim_id, agency_id });
-  
+    // ✅ Removed the pointless ChatRoom.findOne that was here
+    // ChatRoom is only created later when admin approves the connection
 
-    
     claim.status = 'assigned';
     await claim.save();
 
-    
+    // ✅ Only increment if this is a fresh assignment, not a reassignment
+    // (agency already had this claim counted if it was connection_denied)
     agency.claims_used += 1;
     await agency.save();
 
@@ -57,22 +62,28 @@ exports.createAssignment = async (req, res) => {
   }
 };
 
-
 exports.closeClaim = async (req, res) => {
   try {
     const { claim_id, recovered_amount } = req.body;
 
-   
     const claim = await Claim.findById(claim_id);
     if (!claim) return res.status(404).json({ message: 'Claim not found' });
 
-   
-    const assignment = await Assignment.findOne({ claim_id });
-    if (!assignment) return res.status(404).json({ message: 'Assignment not found' });
+    // ✅ Only connection_approved claims can be closed — they are the ones actively in work
+    if (claim.status !== 'connection_approved') {
+      return res.status(400).json({
+        message: `Only active claims (connection_approved) can be closed. Current status: "${claim.status}"`,
+      });
+    }
 
-   
+    if (!recovered_amount || recovered_amount < 0) {
+      return res.status(400).json({ message: 'A valid recovered amount is required to close the claim.' });
+    }
+
+    const assignment = await Assignment.findOne({ claim_id, status: 'active' });
+    if (!assignment) return res.status(404).json({ message: 'Active assignment not found' });
+
     const referral_fee = recovered_amount * 0.07;
-
 
     await Referral.create({
       claim_id,
@@ -82,11 +93,9 @@ exports.closeClaim = async (req, res) => {
       status: 'pending',
     });
 
-   
     claim.status = 'closed';
     await claim.save();
 
-   
     assignment.status = 'completed';
     await assignment.save();
 

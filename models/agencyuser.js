@@ -7,6 +7,8 @@ const agencyUserSchema = new mongoose.Schema({
   password_hash: { type: String, required: true },
   role:          { type: String, enum: ['owner', 'member'], default: 'owner' },
   is_active:     { type: Boolean, default: true },
+  upfront_fee:        { type: Boolean, default: false },
+  upfront_fee_amount: { type: Number,  default: 0 },
   ein:{type:String}
 }, { timestamps: true });
 

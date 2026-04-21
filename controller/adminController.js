@@ -1,13 +1,13 @@
 const adminModel = require("../models/admin");
 const jwt=require('jsonwebtoken');
 const User=require('../models/user')
-
+ const { ChatRoom } = require('../models/chat');
 const Claim=require('../models/claim')
 const Assignment=require('../models/assignment')
 const bcrypt = require('bcrypt');
 const Agency = require('../models/agency');
 const AgencyUser = require('../models/agencyuser');
-const Subscription = require('../models/subscription'); // ✅ add this — adjust path if needed
+const Subscription = require('../models/subscription'); 
 
 module.exports.getDashboardStats = async (req, res) => {
     try {
@@ -494,5 +494,120 @@ module.exports.adminLogin = async (req, res) => {
       res.json({ success: true, message: 'Agency and its users deleted successfully' });
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });
+    }
+  };
+
+
+
+
+
+  module.exports.getClaimConnections = async (req, res) => {
+    try {
+      const claims = await Claim.find({
+        status: {
+          $in: ['pending_admin', 'approved_by_agency', 'in_progress', 'connection_approved', 'connection_denied']
+        }
+      })
+        .populate('user_id', 'business_name email contact_name')
+        .sort({ updatedAt: -1 });
+  
+      // For each claim, find its assigned agency via Assignment model
+      const shaped = await Promise.all(
+        claims.map(async (c) => {
+          const assignment = await Assignment.findOne({ claim_id: c._id })
+            .populate('agency_id', 'name states_covered')
+            .sort({ assigned_at: -1 }); // get latest assignment if multiple
+  
+          return {
+            _id:               c._id,
+            debtor_name:       c.debtor_name,
+            debtor_type:       c.debtor_type,
+            amount:            c.amount,
+            due_date:          c.due_date,
+            description:       c.description,
+            status:            c.status,
+            agency_approved_at: c.agency_approved_at || assignment?.assigned_at,
+            createdAt:         c.createdAt,
+            updatedAt:         c.updatedAt,
+            agency: assignment?.agency_id
+              ? {
+                  name:           assignment.agency_id.name,
+                  states_covered: assignment.agency_id.states_covered,
+                }
+              : null,
+            business: c.user_id
+              ? {
+                  business_name: c.user_id.business_name || c.business_name,
+                  email:         c.user_id.email,
+                  contact_name:  c.user_id.contact_name,
+                }
+              : { business_name: c.business_name },
+          };
+        })
+      );
+  
+      res.status(200).json({ claims: shaped });
+    } catch (err) {
+      console.error('getClaimConnections error:', err);
+      res.status(500).json({ message: 'Server error fetching claims.' });
+    }
+  };
+
+
+
+
+  module.exports.approveConnection = async (req, res) => {
+    try {
+      const claim = await Claim.findByIdAndUpdate(
+        req.params.id,
+        { status: 'connection_approved' },
+        { new: true }
+      ).populate('user_id', 'business_name email');
+  
+      if (!claim) return res.status(404).json({ message: 'Claim not found.' });
+  
+      const assignment = await Assignment.findOne({ claim_id: claim._id })
+        .populate('agency_id', 'name states_covered email');
+  
+      // ✅ NOW create the ChatRoom
+      await ChatRoom.create({
+        claim_id:  claim._id,
+        agency_id: assignment.agency_id._id,
+        user_id:   claim.user_id._id,
+      });
+  
+      // ✅ Email business
+     
+      // ✅ Email agency
+      if (assignment.agency_id.email) {
+      
+      }
+  
+      res.status(200).json({ message: 'Connection approved.', claim: { _id: claim._id, status: claim.status } });
+    } catch (err) {
+      console.error('approveConnection error:', err);
+      res.status(500).json({ message: 'Server error approving connection.' });
+    }
+  };
+  
+  // ── Admin denies connection ───────────────────────────────────────────────────
+  module.exports.denyConnection = async (req, res) => {
+    try {
+      const claim = await Claim.findByIdAndUpdate(
+        req.params.id,
+        { status: 'connection_denied' },
+        { new: true }
+      ).populate('user_id', 'business_name email');
+  
+      if (!claim) return res.status(404).json({ message: 'Claim not found.' });
+  
+      // ✅ No ChatRoom created
+      // ✅ Email business only
+     
+  
+      res.status(200).json({ message: 'Connection denied.', claim: { _id: claim._id, status: claim.status } });
+    } catch (err) {
+      console.error('denyConnection error:', err);
+      res.status(500).json({ message: 'Server error denying connection.' });
     }
   };

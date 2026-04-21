@@ -12,7 +12,10 @@ const claimSchema = new mongoose.Schema({
     description:    { type: String },
     status: {
       type: String,
-      enum: ['submitted', 'assigned', 'in_progress', 'closed', 'denied'],
+      enum: [
+        'submitted', 'assigned', 'in_progress', 'closed', 'denied',
+        'pending_admin', 'approved_by_agency', 'connection_approved', 'connection_denied'
+      ],
       default: 'submitted'
     },
     documents:        [{ filename: String, path: String, mimetype: String, uploadedAt: { type: Date, default: Date.now } }],

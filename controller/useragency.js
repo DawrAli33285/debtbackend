@@ -16,8 +16,11 @@ const register = async (req, res) => {
       email,
       password,
       ein,
-      agreement_version,  // new
+      agreement_version,
+      upfront_fee,
+      upfront_fee_amount,
     } = req.body;
+
 
     if (!agency_name || !name || !email || !password) {
       return res.status(400).json({ message: 'agency_name, name, email and password are required' });
@@ -28,12 +31,13 @@ const register = async (req, res) => {
       return res.status(409).json({ message: 'Email already registered' });
     }
 
-    // 1. Create the Agency profile
     const agency = await Agency.create({
-      name:           agency_name,
-      states_covered: states_covered || [],
-      specialties:    specialties    || [],
-      fee_percentage: fee_percentage || 0,
+      name:               agency_name,
+      states_covered:     states_covered     || [],
+      specialties:        specialties        || [],
+      fee_percentage:     fee_percentage     || 0,
+      upfront_fee:        upfront_fee        ?? false,
+      upfront_fee_amount: upfront_fee_amount || 0,
     });
 
     // 2. Create the owner AgencyUser
@@ -79,13 +83,15 @@ const register = async (req, res) => {
         agency_id: agency._id,
       },
       agency: {
-        _id:            agency._id,
-        name:           agency.name,
-        states_covered: agency.states_covered,
-        specialties:    agency.specialties,
-        fee_percentage: agency.fee_percentage,
-        is_verified:    agency.is_verified,
-        plan_type:      agency.plan_type,
+        _id:                agency._id,
+        name:               agency.name,
+        states_covered:     agency.states_covered,
+        specialties:        agency.specialties,
+        fee_percentage:     agency.fee_percentage,
+        upfront_fee:        agency.upfront_fee,
+        upfront_fee_amount: agency.upfront_fee_amount,
+        is_verified:        agency.is_verified,
+        plan_type:          agency.plan_type,
       },
     });
   } catch (err) {
