@@ -132,12 +132,12 @@ exports.acceptClaim = async (req, res) => {
     const assignment = await Assignment.findOne({ claim_id: claim._id });
 
     // ✅ Move to pending_admin (NOT in_progress anymore)
-    claim.status = 'approved_by_agency';
+    claim.status = 'in_progress';
     claim.agency_approved_at = new Date();
     await claim.save();
 
     // Update to pending_admin right after
-    claim.status = 'pending_admin';
+    claim.status = 'in_progress';
     await claim.save();
 
     agency.claims_used += 1;
@@ -187,7 +187,7 @@ exports.closeClaim = async (req, res) => {
     if (!claim) return res.status(404).json({ message: 'Claim not found' });
 
     // ✅ Only connection_approved claims can be closed (they are actively in work)
-    if (claim.status !== 'connection_approved')
+    if (claim.status!=='in_progress')
       return res.status(400).json({ message: 'Only active (connection approved) claims can be closed' });
 
     claim.status = 'closed';
@@ -210,7 +210,7 @@ exports.reopenClaim = async (req, res) => {
       return res.status(400).json({ message: 'Only closed claims can be reopened' });
 
     // ✅ Goes to submitted — admin reassigns to agency, full flow restarts
-    claim.status = 'submitted';
+    claim.status = 'assigned';
     await claim.save();
 
     res.json({ message: 'Claim reopened and back in queue', claim });

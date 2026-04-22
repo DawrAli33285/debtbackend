@@ -8,6 +8,7 @@ const claimRoutes = require('./routes/claims');
 const adminRoutes = require('./routes/admin');
 const businessSubscriptionRoutes = require('./routes/businesssubscription');
 const agencySubscriptionRoutes = require('./routes/agencysubscription');
+const businessAccountRoutes=require('./routes/account')
 require('dotenv').config();
 const connection = require('./connection/connection');
 const { Message, ChatRoom } = require('./models/chat');
@@ -35,6 +36,7 @@ app.use('/assignments', require('./routes/assignment'));
 app.use('/subscription', agencySubscriptionRoutes);
 app.use('/businessSubscription', businessSubscriptionRoutes);
 app.use('/agency/claims', require('./routes/agencyclaim'));
+app.use('/businessAccount',businessAccountRoutes)
 app.use('/admin', adminRoutes);
 
 // ── Socket.IO ────────────────────────────────────────────────────────────────

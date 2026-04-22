@@ -505,7 +505,7 @@ module.exports.adminLogin = async (req, res) => {
     try {
       const claims = await Claim.find({
         status: {
-          $in: ['pending_admin', 'approved_by_agency', 'in_progress', 'connection_approved', 'connection_denied']
+          $in: ['assigned']
         }
       })
         .populate('user_id', 'business_name email contact_name')
@@ -546,6 +546,7 @@ module.exports.adminLogin = async (req, res) => {
         })
       );
   
+      
       res.status(200).json({ claims: shaped });
     } catch (err) {
       console.error('getClaimConnections error:', err);
