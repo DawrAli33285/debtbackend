@@ -47,7 +47,7 @@ const createBillingPlan = async (token, productId, amount, planName) => {
             name: `Agency ${planName.charAt(0).toUpperCase() + planName.slice(1)} Annual`,
             billing_cycles: [
                 {
-                    frequency: { interval_unit: 'YEAR', interval_count: 1 },
+                    frequency: { interval_unit: 'DAY', interval_count: 1 },
                     tenure_type: 'REGULAR',
                     sequence: 1,
                     total_cycles: 0,
@@ -78,18 +78,29 @@ const cancelPayPalSubscription = async (token, subscriptionId) => {
     )
 }
 
+// const calculatePeriodEnd = () => {
+//     const date = new Date()
+//     date.setFullYear(date.getFullYear() + 1)
+//     return date
+// }
+
+
 const calculatePeriodEnd = () => {
     const date = new Date()
-    date.setFullYear(date.getFullYear() + 1)
+    date.setDate(date.getDate() + 1) // 1 day for testing
     return date
 }
+
 
 // ── GET PLAN ID (called before PayPal button creates subscription) ──
 const getPlanId = async (req, res) => {
     console.log("GETPLANID")
     try {
-        const { amount, planName } = req.body
+        // const { amount, planName } = req.body
 
+        // After
+const { planName } = req.body
+const amount = '1.00' // Hardcoded for testing
         if (!['starter', 'growth', 'professional', 'enterprise'].includes(planName)) {
             return res.status(400).json({ message: 'Invalid plan name' })
         }

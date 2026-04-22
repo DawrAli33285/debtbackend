@@ -44,7 +44,7 @@ const createBillingPlan = async (token, productId, amount, currency, planName) =
             status: 'ACTIVE',
             billing_cycles: [
                 {
-                    frequency: { interval_unit: 'MONTH', interval_count: 1 },
+                    frequency: { interval_unit: 'DAY', interval_count: 1 },
                     tenure_type: 'REGULAR',
                     sequence: 1,
                     total_cycles: 0, // infinite
@@ -104,11 +104,19 @@ const cancelPayPalSubscription = async (token, subscriptionId) => {
     )
 }
 
+// const calculatePeriodEnd = () => {
+//     const date = new Date()
+//     date.setMonth(date.getMonth() + 1)
+//     return date
+// }
+
+
 const calculatePeriodEnd = () => {
     const date = new Date()
-    date.setMonth(date.getMonth() + 1)
+    date.setDate(date.getDate() + 1) // 1 day for testing
     return date
 }
+
 
 // ─────────────────────────────────────────────
 // MAIN CONTROLLER
@@ -117,7 +125,9 @@ const calculatePeriodEnd = () => {
 const getPlanId = async (req, res) => {
     console.log("CALLING")
     try {
-        const { amount, currency = 'USD', planName } = req.body
+        // const { amount, currency = 'USD', planName } = req.body
+        const { currency = 'USD', planName } = req.body
+const amount = '1.00' // Hardcoded for testing
         console.log('[getPlanId] body received:', { amount, currency, planName })
 
         if (!['starter', 'growth', 'professional', 'enterprise'].includes(planName)) {
