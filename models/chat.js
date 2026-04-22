@@ -18,7 +18,11 @@ const chatRoomSchema = new mongoose.Schema({
   agency_id:  { type: mongoose.Schema.Types.ObjectId, ref: 'Agency',   required: true },
   user_id:    { type: mongoose.Schema.Types.ObjectId, ref: 'User',     required: true },
   last_message_at: { type: Date, default: Date.now },
+  is_closed:      { type: Boolean, default: false },
+  closed_at:      { type: Date },
+  closed_reason:  { type: String },
 }, { timestamps: true });
+
 
 const Message  = mongoose.model('Message',  messageSchema);
 const ChatRoom = mongoose.model('ChatRoom', chatRoomSchema);

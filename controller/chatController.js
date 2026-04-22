@@ -51,9 +51,8 @@ const getMessages = async (req, res) => {
       ? room.user_id.toString()   === req.senderId.toString()
       : room.agency_id.toString() === req.senderId.toString();
     if (!belongs) return res.status(403).json({ message: 'Access denied' });
-
     const messages = await Message.find({ room_id: room._id }).sort({ createdAt: 1 });
-    res.json({ messages });
+    res.json({ messages, is_closed: room.is_closed || false });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Server error' });
@@ -70,11 +69,14 @@ const getMessages = async (req, res) => {
       const room = await ChatRoom.findById(req.params.roomId);
       if (!room) return res.status(404).json({ message: 'Room not found' });
   
+      if (room.is_closed) return res.status(403).json({ 
+        message: 'This chat has been closed. The claim is no longer active.' 
+      });
+  
       const belongs = req.senderType === 'user'
         ? room.user_id.toString()   === req.senderId.toString()
         : room.agency_id.toString() === req.senderId.toString();
       if (!belongs) return res.status(403).json({ message: 'Access denied' });
-  
       const message = await Message.create({
         room_id:     room._id,
         sender_type: req.senderType,
@@ -96,11 +98,15 @@ const getMessages = async (req, res) => {
       const room = await ChatRoom.findById(req.params.roomId);
       if (!room) return res.status(404).json({ message: 'Room not found' });
   
+      if (room.is_closed) return res.status(403).json({ 
+        message: 'This chat has been closed. The claim is no longer active.' 
+      });
+  
       const belongs = req.senderType === 'user'
         ? room.user_id.toString()   === req.senderId.toString()
         : room.agency_id.toString() === req.senderId.toString();
       if (!belongs) return res.status(403).json({ message: 'Access denied' });
-  
+
       if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
   
       const fileUrl = `${process.env.backendurl}/uploads/${req.file.filename}`;

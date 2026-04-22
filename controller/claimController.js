@@ -176,8 +176,7 @@
 
 
 
-
-
+const { ChatRoom } = require('../models/chat');
 
 const Claim = require('../models/claim');
 const User = require('../models/user');
@@ -185,10 +184,106 @@ const Assignment = require('../models/assignment');
 const path = require('path');
 const fs = require('fs');
 
+
+module.exports.closeClaim = async (req, res) => {
+  try {
+    const claim = await Claim.findById(req.params.id);
+
+    if (!claim) {
+      return res.status(404).json({ message: 'Claim not found.' });
+    }
+
+    // Only the claim owner can close it
+    if (claim.user_id.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Not authorized to close this claim.' });
+    }
+
+    // Already closed
+    if (claim.status === 'closed') {
+      return res.status(400).json({ message: 'Claim is already closed.' });
+    }
+
+    // Cannot close a denied claim
+    if (claim.status === 'denied') {
+      return res.status(400).json({ message: 'Cannot close a denied claim.' });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    // ── 24-hour rule ──────────────────────────────────────────────
+    const claimAgeHours = (Date.now() - new Date(claim.createdAt).getTime()) / (1000 * 60 * 60);
+    const packageDeducted = claimAgeHours > 24;
+
+    if (packageDeducted && user.subscription_plan !== 'unlimited') {
+      // Deduct 1 from their monthly allowance
+      user.claims_used_this_month = Math.max((user.claims_used_this_month || 0) - 1, 0);
+
+      // Also decrement monthly_claim_limit so they permanently lose the slot
+      user.monthly_claim_limit = Math.max((user.monthly_claim_limit || 1) - 1, 0);
+      await user.save();
+    }
+
+    // ── Update claim status ───────────────────────────────────────
+    claim.status = 'closed';
+    await claim.save();
+
+    await ChatRoom.findOneAndUpdate(
+      { claim_id: claim._id },
+      { is_closed: true, closed_at: new Date(), closed_reason: 'business_closed_claim' },
+    );
+
+
+    // ── Notify the assigned agency ────────────────────────────────
+    const assignment = await Assignment.findOne({ claim_id: claim._id })
+      .populate('agency_id', 'name contact_email');
+
+    // If you have a notification / email system, trigger it here.
+    // Example placeholder:
+    // if (assignment?.agency_id?.contact_email) {
+    //   await sendEmail({
+    //     to: assignment.agency_id.contact_email,
+    //     subject: 'Claim Closed by Business',
+    //     body: `The business has closed claim #${claim._id}. No further action is required.`,
+    //   });
+    // }
+
+    // ── Audit log ─────────────────────────────────────────────────
+    console.log('[CLAIM_CLOSED]', {
+      claim_id:        claim._id,
+      user_id:         req.user.id,
+      timestamp:       new Date().toISOString(),
+      claim_age_hours: claimAgeHours.toFixed(2),
+      package_deducted: packageDeducted,
+    });
+
+    return res.status(200).json({
+      message: packageDeducted
+        ? 'Claim closed. 1 claim point has been deducted from your package.'
+        : 'Claim closed successfully. No package deduction applied.',
+      claim,
+      package_deducted: packageDeducted,
+      agency_notified:  !!assignment,
+    });
+
+  } catch (err) {
+    console.error('[closeClaim]', err.message);
+    res.status(500).json({ message: err.message });
+  }
+};
+
+
 exports.createClaim = async (req, res) => {
   try {
+    console.log('req.user:', req.user);
     const user = await User.findById(req.user.id);
-
+    console.log('user found:', user);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+    
     const now = new Date();
     if (user.billing_cycle_end && now > user.billing_cycle_end) {
       user.claims_used_this_month = 0;
