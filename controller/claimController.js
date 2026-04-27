@@ -182,6 +182,8 @@ const Claim = require('../models/claim');
 const User = require('../models/user');
 const Assignment = require('../models/assignment');
 const path = require('path');
+const Mailgun = require("mailgun.js");
+const FormData = require("form-data");
 const fs = require('fs');
 
 
@@ -327,6 +329,54 @@ exports.createClaim = async (req, res) => {
 
     user.claims_used_this_month += 1;
     await user.save();
+
+
+    const mailgun = new Mailgun(FormData);
+const mg = mailgun.client({
+  username: "api",
+  key: process.env.MAILGUN_API_KEY,
+});
+
+if (user.email) {
+  await mg.messages.create("collectionsconnector.com", {
+    from: 'noreply@collectionsconnector.com',
+    to: [user.email],
+    subject: '✅ Claim Submitted Successfully - Collections Connector',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+        <div style="background-color: #1669A9; padding: 30px; text-align: center;">
+          <h1 style="color: #ffffff; margin: 0; font-size: 26px;">Claim Submitted</h1>
+        </div>
+        <div style="padding: 30px;">
+          <p style="color: #2c3e50; font-size: 15px;">Hi <strong>${user.business_name || user.contact_name || 'there'}</strong>,</p>
+          <p style="color: #495057; font-size: 15px; line-height: 1.6;">
+            Your claim has been successfully submitted.
+          </p>
+          <p style="color: #495057; font-size: 15px; line-height: 1.6;">
+            Our system is now preparing your claim for agency review. Please continue to the next step to select a collection agency.
+          </p>
+          <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+            <tr>
+              <td style="padding: 12px; background-color: #f8f9fa; font-weight: 600; width: 40%; border: 1px solid #dee2e6;">Debtor</td>
+              <td style="padding: 12px; border: 1px solid #dee2e6;">${claim.debtor_name || '—'}</td>
+            </tr>
+            <tr>
+              <td style="padding: 12px; background-color: #f8f9fa; font-weight: 600; border: 1px solid #dee2e6;">Amount</td>
+              <td style="padding: 12px; border: 1px solid #dee2e6;">${claim.amount ? `$${Number(claim.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '—'}</td>
+            </tr>
+            <tr>
+              <td style="padding: 12px; background-color: #f8f9fa; font-weight: 600; border: 1px solid #dee2e6;">Submitted On</td>
+              <td style="padding: 12px; border: 1px solid #dee2e6;">${new Date().toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' })}</td>
+            </tr>
+          </table>
+        </div>
+        <div style="background-color: #f5f7fa; padding: 20px; text-align: center; border-top: 1px solid #e0e7ef;">
+          <p style="margin: 0; color: #7a96a8; font-size: 12px;">© ${new Date().getFullYear()} Collections Connector. All rights reserved.</p>
+        </div>
+      </div>
+    `,
+  });
+}
 
     res.status(201).json({
       message: 'Claim submitted successfully. Our team will review and assign your claim shortly.',

@@ -1,6 +1,8 @@
 const adminModel = require("../models/admin");
 const jwt=require('jsonwebtoken');
 const User=require('../models/user')
+const Mailgun = require("mailgun.js");
+const FormData = require("form-data");
  const { ChatRoom } = require('../models/chat');
 const Claim=require('../models/claim')
 const Assignment=require('../models/assignment')
@@ -8,6 +10,7 @@ const bcrypt = require('bcrypt');
 const Agency = require('../models/agency');
 const AgencyUser = require('../models/agencyuser');
 const Subscription = require('../models/subscription'); 
+
 
 module.exports.getDashboardStats = async (req, res) => {
     try {
@@ -503,11 +506,7 @@ module.exports.adminLogin = async (req, res) => {
 
   module.exports.getClaimConnections = async (req, res) => {
     try {
-      const claims = await Claim.find({
-        status: {
-          $in: ['assigned']
-        }
-      })
+      const claims = await Claim.find({})
         .populate('user_id', 'business_name email contact_name')
         .sort({ updatedAt: -1 });
   
@@ -563,34 +562,127 @@ module.exports.adminLogin = async (req, res) => {
         req.params.id,
         { status: 'connection_approved' },
         { new: true }
-      ).populate('user_id', 'business_name email');
+      ).populate('user_id', 'business_name email contact_name');
   
       if (!claim) return res.status(404).json({ message: 'Claim not found.' });
   
       const assignment = await Assignment.findOne({ claim_id: claim._id })
         .populate('agency_id', 'name states_covered email');
   
-      // ✅ NOW create the ChatRoom
+      // Create ChatRoom
       await ChatRoom.create({
         claim_id:  claim._id,
         agency_id: assignment.agency_id._id,
         user_id:   claim.user_id._id,
       });
   
-      // ✅ Email business
-     
-      // ✅ Email agency
-      if (assignment.agency_id.email) {
-      
-      }
+      // Setup Mailgun
+      const mailgun = new Mailgun(FormData);
+      const mg = mailgun.client({
+        username: "api",
+        key: process.env.MAILGUN_API_KEY,
+      });
   
+      const businessEmail = claim.user_id.email;
+      const businessName  = claim.user_id.business_name || 'Business';
+      const agencyEmail   = assignment.agency_id.email;
+      const agencyName    = assignment.agency_id.name || 'Agency';
+      const debtorName    = claim.debtor_name || 'the debtor';
+      const amount        = claim.amount ? `$${Number(claim.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '—';
+      const dashboardUrl  = process.env.FRONTEND_URL || 'https://collectionsconnector.com';
+  
+      if (businessEmail) {
+        await mg.messages.create("collectionsconnector.com", {
+          from: 'noreply@collectionsconnector.com',
+          to: [businessEmail],
+          subject: '✅ Your Claim Connection Has Been Approved - Collections Connector',
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+              <div style="background-color: #1669A9; padding: 30px; text-align: center;">
+                <h1 style="color: #ffffff; margin: 0; font-size: 26px;">Connection Approved</h1>
+              </div>
+              <div style="padding: 30px;">
+                <p style="color: #2c3e50; font-size: 15px;">Hi <strong>${businessName}</strong>,</p>
+                <p style="color: #495057; font-size: 15px; line-height: 1.6;">
+                  Your claim has been approved. You are now connected with <strong>${agencyName}</strong> for the following case:
+                </p>
+                <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+                  <tr>
+                    <td style="padding: 12px; background-color: #f8f9fa; font-weight: 600; width: 40%; border: 1px solid #dee2e6;">Debtor</td>
+                    <td style="padding: 12px; border: 1px solid #dee2e6;">${debtorName}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 12px; background-color: #f8f9fa; font-weight: 600; border: 1px solid #dee2e6;">Amount</td>
+                    <td style="padding: 12px; border: 1px solid #dee2e6;">${amount}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 12px; background-color: #f8f9fa; font-weight: 600; border: 1px solid #dee2e6;">Assigned Agency</td>
+                    <td style="padding: 12px; border: 1px solid #dee2e6;">${agencyName}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 12px; background-color: #f8f9fa; font-weight: 600; border: 1px solid #dee2e6;">Approved On</td>
+                    <td style="padding: 12px; border: 1px solid #dee2e6;">${new Date().toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' })}</td>
+                  </tr>
+                </table>
+              </div>
+              <div style="background-color: #f5f7fa; padding: 20px; text-align: center; border-top: 1px solid #e0e7ef;">
+                <p style="margin: 0; color: #7a96a8; font-size: 12px;">© ${new Date().getFullYear()} Collections Connector. All rights reserved.</p>
+              </div>
+            </div>
+          `,
+        });
+      }
+
+
+      if (agencyEmail) {
+        await mg.messages.create("collectionsconnector.com", {
+          from: 'noreply@collectionsconnector.com',
+          to: [agencyEmail],
+          subject: '✅ New Claim Assigned to Your Agency - Collections Connector',
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+              <div style="background-color: #1669A9; padding: 30px; text-align: center;">
+                <h1 style="color: #ffffff; margin: 0; font-size: 26px;">New Claim Assigned</h1>
+              </div>
+              <div style="padding: 30px;">
+                <p style="color: #2c3e50; font-size: 15px;">Hi <strong>${agencyName}</strong>,</p>
+                <p style="color: #495057; font-size: 15px; line-height: 1.6;">
+                  A new claim has been approved and assigned to your agency. Here are the details:
+                </p>
+                <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+                  <tr>
+                    <td style="padding: 12px; background-color: #f8f9fa; font-weight: 600; width: 40%; border: 1px solid #dee2e6;">Debtor</td>
+                    <td style="padding: 12px; border: 1px solid #dee2e6;">${debtorName}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 12px; background-color: #f8f9fa; font-weight: 600; border: 1px solid #dee2e6;">Amount</td>
+                    <td style="padding: 12px; border: 1px solid #dee2e6;">${amount}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 12px; background-color: #f8f9fa; font-weight: 600; border: 1px solid #dee2e6;">Business</td>
+                    <td style="padding: 12px; border: 1px solid #dee2e6;">${businessName}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 12px; background-color: #f8f9fa; font-weight: 600; border: 1px solid #dee2e6;">Approved On</td>
+                    <td style="padding: 12px; border: 1px solid #dee2e6;">${new Date().toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' })}</td>
+                  </tr>
+                </table>
+              </div>
+              <div style="background-color: #f5f7fa; padding: 20px; text-align: center; border-top: 1px solid #e0e7ef;">
+                <p style="margin: 0; color: #7a96a8; font-size: 12px;">© ${new Date().getFullYear()} Collections Connector. All rights reserved.</p>
+              </div>
+            </div>
+          `,
+        });
+      }
+
+
       res.status(200).json({ message: 'Connection approved.', claim: { _id: claim._id, status: claim.status } });
     } catch (err) {
       console.error('approveConnection error:', err);
       res.status(500).json({ message: 'Server error approving connection.' });
     }
   };
-  
   // ── Admin denies connection ───────────────────────────────────────────────────
   module.exports.denyConnection = async (req, res) => {
     try {
@@ -602,9 +694,63 @@ module.exports.adminLogin = async (req, res) => {
   
       if (!claim) return res.status(404).json({ message: 'Claim not found.' });
   
-      // ✅ No ChatRoom created
-      // ✅ Email business only
-     
+      const businessEmail = claim.user_id.email;
+      const businessName  = claim.user_id.business_name || 'Business';
+      const debtorName    = claim.debtor_name || 'the debtor';
+      const amount        = claim.amount ? `$${Number(claim.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '—';
+  
+      if (businessEmail) {
+        const mailgun = new Mailgun(FormData);
+        const mg = mailgun.client({
+          username: "api",
+          key: process.env.MAILGUN_API_KEY,
+        });
+  
+        await mg.messages.create("collectionsconnector.com", {
+          from: 'noreply@collectionsconnector.com',
+          to: [businessEmail],
+          subject: '❌ Your Claim Connection Has Been Denied - Collections Connector',
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+              <div style="background-color: #c0392b; padding: 30px; text-align: center;">
+                <h1 style="color: #ffffff; margin: 0; font-size: 26px;">Connection Denied</h1>
+              </div>
+              <div style="padding: 30px;">
+                <p style="color: #2c3e50; font-size: 15px;">Hi <strong>${businessName}</strong>,</p>
+                <p style="color: #495057; font-size: 15px; line-height: 1.6;">
+                  After review, your claim connection request has been denied. Here are the details of the claim:
+                </p>
+                <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+                  <tr>
+                    <td style="padding: 12px; background-color: #f8f9fa; font-weight: 600; width: 40%; border: 1px solid #dee2e6;">Debtor</td>
+                    <td style="padding: 12px; border: 1px solid #dee2e6;">${debtorName}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 12px; background-color: #f8f9fa; font-weight: 600; border: 1px solid #dee2e6;">Amount</td>
+                    <td style="padding: 12px; border: 1px solid #dee2e6;">${amount}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 12px; background-color: #f8f9fa; font-weight: 600; border: 1px solid #dee2e6;">Decision</td>
+                    <td style="padding: 12px; border: 1px solid #dee2e6;">
+                      <span style="background-color: #c0392b; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600;">DENIED</span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 12px; background-color: #f8f9fa; font-weight: 600; border: 1px solid #dee2e6;">Denied On</td>
+                    <td style="padding: 12px; border: 1px solid #dee2e6;">${new Date().toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' })}</td>
+                  </tr>
+                </table>
+                <p style="color: #495057; font-size: 14px; line-height: 1.6;">
+                  If you believe this is a mistake or have questions, please contact our support team.
+                </p>
+              </div>
+              <div style="background-color: #f5f7fa; padding: 20px; text-align: center; border-top: 1px solid #e0e7ef;">
+                <p style="margin: 0; color: #7a96a8; font-size: 12px;">© ${new Date().getFullYear()} Collections Connector. All rights reserved.</p>
+              </div>
+            </div>
+          `,
+        });
+      }
   
       res.status(200).json({ message: 'Connection denied.', claim: { _id: claim._id, status: claim.status } });
     } catch (err) {

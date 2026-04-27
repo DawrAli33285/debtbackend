@@ -4,6 +4,14 @@ const axios = require('axios')
 
 const PAYPAL_BASE = process.env.PAYPAL_BASE_URL || 'https://api-m.sandbox.paypal.com'
 
+// ── Hardcoded Plan IDs (provided by client) ──
+const PLAN_IDS = {
+    starter: 'P-7F292727A87140022NHTGIOY',      // Pasado Starter Monthly
+    growth: 'P-66526901VN719461KNHTGKMA',        // Pasado Growth Monthly
+    enterprise: 'P-1R27947964072291FNHTGLWA',    // Pasado Enterprise Monthly
+}
+
+
 // ── Get OAuth token ──
 const getPayPalToken = async () => {
     const res = await axios.post(
@@ -20,81 +28,6 @@ const getPayPalToken = async () => {
     return res.data.access_token
 }
 
-// ── Create or retrieve a PayPal Product ──
-const ensureProduct = async (token, planName) => {
-    const res = await axios.post(
-        `${PAYPAL_BASE}/v1/catalogs/products`,
-        {
-            name: `Pasado ${planName.charAt(0).toUpperCase() + planName.slice(1)} Plan`,
-            type: 'SERVICE',
-            category: 'SOFTWARE',
-        },
-        { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
-    )
-    return res.data.id
-}
-
-// ── Create a Billing Plan ──
-const createBillingPlan = async (token, productId, amount, currency, planName) => {
-    const res = await axios.post(
-        `${PAYPAL_BASE}/v1/billing/plans`,
-        {
-            product_id: productId,
-            name: `Pasado ${planName.charAt(0).toUpperCase() + planName.slice(1)} Monthly`,
-            status: 'ACTIVE',
-            billing_cycles: [
-                {
-                    frequency: { interval_unit: 'DAY', interval_count: 1 },
-                    tenure_type: 'REGULAR',
-                    sequence: 1,
-                    total_cycles: 0, // infinite
-                    pricing_scheme: {
-                        fixed_price: {
-                            value: String(amount),
-                            currency_code: currency.toUpperCase(),
-                        },
-                    },
-                },
-            ],
-            payment_preferences: {
-                auto_bill_outstanding: true,
-                setup_fee_failure_action: 'CONTINUE',
-                payment_failure_threshold: 3,
-            },
-        },
-        { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
-    )
-    return res.data.id
-}
-
-// ── Create a Subscription ──
-const createPayPalSubscription = async (token, planId, email) => {
-    const res = await axios.post(
-        `${PAYPAL_BASE}/v1/billing/subscriptions`,
-        {
-            plan_id: planId,
-            subscriber: { email_address: email },
-            application_context: {
-                return_url: `${process.env.FRONTEND_URL}/subscription/success`,
-                cancel_url: `${process.env.FRONTEND_URL}/subscription/cancel`,
-                shipping_preference: 'NO_SHIPPING',
-                user_action: 'SUBSCRIBE_NOW',
-            },
-        },
-        { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
-    )
-    return res.data
-}
-
-// ── Retrieve a Subscription ──
-const getPayPalSubscription = async (token, subscriptionId) => {
-    const res = await axios.get(
-        `${PAYPAL_BASE}/v1/billing/subscriptions/${subscriptionId}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-    )
-    return res.data
-}
-
 // ── Cancel a Subscription ──
 const cancelPayPalSubscription = async (token, subscriptionId) => {
     await axios.post(
@@ -104,66 +37,41 @@ const cancelPayPalSubscription = async (token, subscriptionId) => {
     )
 }
 
-// const calculatePeriodEnd = () => {
-//     const date = new Date()
-//     date.setMonth(date.getMonth() + 1)
-//     return date
-// }
-
-
 const calculatePeriodEnd = () => {
     const date = new Date()
     date.setDate(date.getDate() + 1) // 1 day for testing
     return date
 }
 
+    // ── GET PLAN ID ──
+    const getPlanId = async (req, res) => {
+        try {
+            const { planName } = req.body
+            console.log('[getPlanId] body received:', { planName })
 
-// ─────────────────────────────────────────────
-// MAIN CONTROLLER
-// ─────────────────────────────────────────────
-// ── GET PLAN ID (called before PayPal button renders subscription) ──
-const getPlanId = async (req, res) => {
-    console.log("CALLING")
-    try {
-        // const { amount, currency = 'USD', planName } = req.body
-        const { currency = 'USD', planName } = req.body
-const amount = '1.00' // Hardcoded for testing
-        console.log('[getPlanId] body received:', { amount, currency, planName })
+            if (!['starter', 'growth', 'professional', 'enterprise'].includes(planName)) {
+                return res.status(400).json({ message: 'Invalid plan name' })
+            }
 
-        if (!['starter', 'growth', 'professional', 'enterprise'].includes(planName)) {
-            console.log('[getPlanId] invalid plan name:', planName)
-            return res.status(400).json({ message: 'Invalid plan name' })
+            const planId = PLAN_IDS[planName]
+
+            if (!planId) {
+                return res.status(400).json({ message: `Plan ID for "${planName}" is not configured yet` })
+            }
+
+            console.log('[getPlanId] returning planId:', planId)
+            return res.status(200).json({ planId })
+
+        } catch (error) {
+            console.error('[getPlanId] ERROR:', error.message)
+            res.status(500).json({ message: 'Server error', error: error.message })
         }
-
-        console.log('[getPlanId] getting PayPal token...')
-        const token = await getPayPalToken()
-        console.log('[getPlanId] token received:', token ? 'YES' : 'NO')
-
-        console.log('[getPlanId] creating product...')
-        const productId = await ensureProduct(token, planName)
-        console.log('[getPlanId] productId:', productId)
-
-        console.log('[getPlanId] creating billing plan...')
-        const planId = await createBillingPlan(token, productId, amount, currency, planName)
-        console.log('[getPlanId] planId:', planId)
-
-        return res.status(200).json({ planId })
-
-    } catch (error) {
-        console.error('[getPlanId] ERROR:', error.message)
-        console.error('[getPlanId] Full error:', error.response?.data || error)
-        res.status(500).json({ message: 'Server error', error: error.message, paypalError: error.response?.data })
     }
-}
 
-// ── CONFIRM SUBSCRIPTION (called after user approves on PayPal) ──
+// ── CONFIRM SUBSCRIPTION ──
 const confirmSubscription = async (req, res) => {
     try {
-        const {
-            subscriptionId,
-            planName,
-            claimsLimit,
-        } = req.body
+        const { subscriptionId, planName, claimsLimit } = req.body
 
         if (!subscriptionId) {
             return res.status(400).json({ message: 'Subscription ID required' })
@@ -214,10 +122,7 @@ const confirmSubscription = async (req, res) => {
     }
 }
 
-
-// ─────────────────────────────────────────────
-// WEBHOOK — PayPal calls this after user approves
-// ─────────────────────────────────────────────
+// ── WEBHOOK ──
 const handlePayPalWebhook = async (req, res) => {
     try {
         const event = req.body
