@@ -9,6 +9,7 @@ const agencyUserSchema = new mongoose.Schema({
   is_active:     { type: Boolean, default: true },
   upfront_fee:        { type: Boolean, default: false },
   upfront_fee_amount: { type: Number,  default: 0 },
+  tax_id:{type:String},
   ein:{type:String}
 }, { timestamps: true });
 

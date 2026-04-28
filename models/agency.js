@@ -11,6 +11,7 @@ const agencySchema = new mongoose.Schema({
     claims_used:             { type: Number, default: 0 },
     subscription_start_date: { type: Date },
     subscription_end_date:   { type: Date },
+    tax_id:{type:String},
     contact_email: { type: String },
 contact_phone: { type: String },
     is_active:               { type: Boolean, default: true },
