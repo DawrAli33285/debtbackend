@@ -546,7 +546,12 @@ module.exports.adminLogin = async (req, res) => {
       );
   
       
-      res.status(200).json({ claims: shaped });
+      const [users, agencies] = await Promise.all([
+        User.find({}, 'business_name email contact_name').sort({ business_name: 1 }),
+        Agency.find({}, 'name states_covered').sort({ name: 1 }),
+      ]);
+      
+      res.status(200).json({ claims: shaped, users, agencies });
     } catch (err) {
       console.error('getClaimConnections error:', err);
       res.status(500).json({ message: 'Server error fetching claims.' });
@@ -756,5 +761,132 @@ module.exports.adminLogin = async (req, res) => {
     } catch (err) {
       console.error('denyConnection error:', err);
       res.status(500).json({ message: 'Server error denying connection.' });
+    }
+  };
+
+
+  module.exports.createClaimForUser = async (req, res) => {
+    try {
+      const {
+        user_id,
+        debtor_type,
+        debtor_name,
+        debtor_email,
+        debtor_phone,
+        debtor_address,
+        amount,
+        due_date,
+        description,
+        past_due_period,
+      } = req.body;
+   
+      if (!user_id) {
+        return res.status(400).json({ message: 'user_id is required.' });
+      }
+   
+      const user = await User.findById(user_id);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found.' });
+      }
+   
+      const claim = await Claim.create({
+        user_id,
+        debtor_type,
+        debtor_name,
+        debtor_email,
+        debtor_phone,
+        debtor_address,
+        amount,
+        due_date,
+        description,
+        past_due_period,
+        status: 'submitted',
+      });
+   
+      return res.status(201).json({
+        message: 'Claim created for user successfully.',
+        claim,
+      });
+    } catch (err) {
+      console.error('createClaimForUser error:', err);
+      return res.status(500).json({ message: 'Server error.', error: err.message });
+    }
+  };
+   
+   
+  // ─── POST /admin/claims/create-for-agency ────────────────────────
+  // Body: { agency_id, user_id (whose claim this is),
+  //         debtor_type, debtor_name, debtor_email,
+  //         debtor_phone, debtor_address, amount, due_date,
+  //         description, past_due_period }
+  //
+  // This creates a claim already assigned to the given agency,
+  // setting its status to 'assigned' and creating an Assignment doc.
+  module.exports.createClaimForAgency = async (req, res) => {
+    try {
+      const {
+        agency_id,
+        user_id,
+        debtor_type,
+        debtor_name,
+        debtor_email,
+        debtor_phone,
+        debtor_address,
+        amount,
+        due_date,
+        description,
+        past_due_period,
+      } = req.body;
+   
+      if (!agency_id) {
+        return res.status(400).json({ message: 'agency_id is required.' });
+      }
+      if (!user_id) {
+        return res.status(400).json({ message: 'user_id is required.' });
+      }
+   
+      const [user, agency] = await Promise.all([
+        User.findById(user_id),
+        Agency.findById(agency_id),
+      ]);
+   
+      if (!user)   return res.status(404).json({ message: 'User not found.' });
+      if (!agency) return res.status(404).json({ message: 'Agency not found.' });
+   
+      // Create the claim pre-assigned to the agency
+      const claim = await Claim.create({
+        user_id,
+        debtor_type,
+        debtor_name,
+        debtor_email,
+        debtor_phone,
+        debtor_address,
+        amount,
+        due_date,
+        description,
+        past_due_period,
+        status: 'assigned',
+      });
+   
+      // Create the assignment record
+      const assignment = await Assignment.create({
+        claim_id:    claim._id,
+        agency_id,
+        assigned_by: req.admin?._id || null,   // set by your auth middleware
+        method:      'manual',
+        status:      'assigned',
+      });
+   
+      // Increment agency's claims_used counter
+      await Agency.findByIdAndUpdate(agency_id, { $inc: { claims_used: 1 } });
+   
+      return res.status(201).json({
+        message: 'Claim created and assigned to agency successfully.',
+        claim,
+        assignment,
+      });
+    } catch (err) {
+      console.error('createClaimForAgency error:', err);
+      return res.status(500).json({ message: 'Server error.', error: err.message });
     }
   };

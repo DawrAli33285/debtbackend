@@ -1,5 +1,5 @@
 const router=require('express').Router();
-const {adminLogin,adminRegister,getClaimConnections,approveConnection,denyConnection,getAgencies,updateAgency,deleteAgency,getUsers,addUser,updateUser,deleteUser,resetPassword,getDashboardStats}=require('../controller/adminController')
+const {adminLogin,adminRegister,getClaimConnections,approveConnection,denyConnection,getAgencies,updateAgency,deleteAgency,getUsers,addUser,updateUser,deleteUser,resetPassword,getDashboardStats, createClaimForUser, createClaimForAgency}=require('../controller/adminController')
 
 router.post('/adminLogin',adminLogin)
 router.post('/adminRegister',adminRegister)
@@ -25,4 +25,7 @@ router.delete('/deleteAgency/:id',   deleteAgency);
 router.get('/claims/pending-connections',          getClaimConnections);
 router.patch('/claims/:id/approve-connection',     approveConnection);
 router.patch('/claims/:id/deny-connection',        denyConnection);
+
+router.post('/claims/create-for-user',   createClaimForUser);
+router.post('/claims/create-for-agency', createClaimForAgency);
 module.exports=router;
