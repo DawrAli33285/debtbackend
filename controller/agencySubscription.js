@@ -13,10 +13,10 @@ const PLAN_CLAIM_LIMITS = {
 
 // ── Hardcoded Plan IDs (provided by client) ──
 const PLAN_IDS = {
-    starter:      'P-46C28639VY892414UNHTGXVY',  // Agency Starter Annual
-    starter:      'P-46C28639VY892414UNHTGXVY',                       // Not created yet in sandbox
-    starter:      'P-46C28639VY892414UNHTGXVY',                           // Not created yet in sandbox
-    enterprise:   'P-1SE12550PC0339704NHTG3YY',  // Agency Enterprise Annual
+    starter:      'P-6NG06940P7148641YNHXWWBA',  // Agency Starter Annual
+    growth:      'P-25V87375WL414664TNHXWWSQ',                       // Not created yet in sandbox
+    professional:      'P-19536608K92748707NHXWXAY',                           // Not created yet in sandbox
+    enterprise:   'P-4N6479001L030084FNHXWXUQ',  // Agency Enterprise Annual
 }
 const getPayPalToken = async () => {
     const res = await axios.post(

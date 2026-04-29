@@ -6,9 +6,9 @@ const PAYPAL_BASE = process.env.PAYPAL_BASE_URL || 'https://api-m.sandbox.paypal
 
 // ── Hardcoded Plan IDs (provided by client) ──
 const PLAN_IDS = {
-    starter: 'P-7F292727A87140022NHTGIOY',      // Pasado Starter Monthly
-    growth: 'P-66526901VN719461KNHTGKMA',        // Pasado Growth Monthly
-    enterprise: 'P-1R27947964072291FNHTGLWA',    // Pasado Enterprise Monthly
+    starter: 'P-9LD83767BS740793YNHXW4GA',      // Pasado Starter Monthly
+    growth: 'P-18W53064DR490721KNHXW4UQ',        // Pasado Growth Monthly
+    enterprise: 'P-78H90615TU962330LNHXW5AY',    // Pasado Enterprise Monthly
 }
 
 
