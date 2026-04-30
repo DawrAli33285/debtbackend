@@ -51,7 +51,19 @@ const getMessages = async (req, res) => {
       ? room.user_id.toString()   === req.senderId.toString()
       : room.agency_id.toString() === req.senderId.toString();
     if (!belongs) return res.status(403).json({ message: 'Access denied' });
+
     const messages = await Message.find({ room_id: room._id }).sort({ createdAt: 1 });
+
+    // ← Mark messages from the OTHER side as read
+    await Message.updateMany(
+      {
+        room_id:     room._id,
+        sender_type: req.senderType === 'agency' ? 'user' : 'agency',
+        read:        false,
+      },
+      { $set: { read: true } }
+    );
+
     res.json({ messages, is_closed: room.is_closed || false });
   } catch (err) {
     console.error(err);
@@ -163,4 +175,26 @@ const createRoom = async (req, res) => {
   }
 };
 
-module.exports = { getRooms, sendMessageWithFile,getMessages, sendMessage, createRoom };
+
+const getUnreadCount = async (req, res) => {
+  try {
+    const rooms = await ChatRoom.find(
+      req.senderType === 'user' ? { user_id: req.senderId } : { agency_id: req.senderId }
+    );
+    const roomIds = rooms.map(r => r._id);
+
+    const count = await Message.countDocuments({
+      room_id:     { $in: roomIds },
+      sender_type: req.senderType === 'agency' ? 'user' : 'agency', // messages FROM the other side
+      read:        false,
+    });
+
+    res.json({ unread: count });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+
+module.exports = { getRooms,getUnreadCount,sendMessageWithFile,getMessages, sendMessage, createRoom };

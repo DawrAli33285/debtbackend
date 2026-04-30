@@ -1,6 +1,6 @@
 const express    = require('express');
 const router     = express.Router();
-const { getRooms, getMessages, sendMessage, createRoom, sendMessageWithFile } = require('../controller/chatController');
+const { getRooms, getMessages, sendMessage, createRoom, sendMessageWithFile, getUnreadCount } = require('../controller/chatController');
 const auth        = require('../middleware/auth');        // sets req.user  (business user)
 const agencyAuth  = require('../middleware/agencyauth'); // sets req.agencyUser
 const multer = require('multer');
@@ -63,5 +63,8 @@ router.post('/agency/:roomId/upload', agencyAuth, asAgency, upload.single('file'
 router.post('/:roomId/upload', auth, asUser, upload.single('file'), sendMessageWithFile);
 // ── Internal: create a room when a claim is assigned ─────────────────────────
 router.post('/rooms', auth, createRoom);
+
+router.get('/unread-count',        auth,       asUser,   getUnreadCount);
+router.get('/agency/unread-count', agencyAuth, asAgency, getUnreadCount);
 
 module.exports = router;

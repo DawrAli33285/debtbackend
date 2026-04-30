@@ -14,7 +14,7 @@ const claimSchema = new mongoose.Schema({
       type: String,
       enum: [
         'submitted', 'assigned', 'in_progress', 'closed', 'denied',
-        'pending_admin', 'approved_by_agency', 'connection_approved', 'connection_denied'
+        'pending_admin','pending', 'approved_by_agency', 'connection_approved', 'connection_denied'
       ],
       default: 'submitted'
     },

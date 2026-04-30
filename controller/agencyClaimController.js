@@ -132,12 +132,12 @@ exports.acceptClaim = async (req, res) => {
     const assignment = await Assignment.findOne({ claim_id: claim._id });
 
     // ✅ Move to pending_admin (NOT in_progress anymore)
-    claim.status = 'in_progress';
+    claim.status = 'pending';
     claim.agency_approved_at = new Date();
     await claim.save();
 
     // Update to pending_admin right after
-    claim.status = 'in_progress';
+    claim.status = 'pending';
     await claim.save();
 
     agency.claims_used += 1;

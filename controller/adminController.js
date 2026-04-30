@@ -565,7 +565,7 @@ module.exports.adminLogin = async (req, res) => {
     try {
       const claim = await Claim.findByIdAndUpdate(
         req.params.id,
-        { status: 'connection_approved' },
+        { status: 'in_progress' },
         { new: true }
       ).populate('user_id', 'business_name email contact_name');
   
