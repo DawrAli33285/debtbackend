@@ -39,7 +39,7 @@ const cancelPayPalSubscription = async (token, subscriptionId) => {
 
 const calculatePeriodEnd = () => {
     const date = new Date()
-    date.setDate(date.getDate() + 1) // 1 day for testing
+    date.setMonth(date.getMonth() + 1)
     return date
 }
 
@@ -126,6 +126,8 @@ const confirmSubscription = async (req, res) => {
 const handlePayPalWebhook = async (req, res) => {
     try {
         const event = req.body
+
+        // ── Subscription activated ──
         if (event.event_type === 'BILLING.SUBSCRIPTION.ACTIVATED') {
             const subscriptionId = event.resource?.id
             if (subscriptionId) {
@@ -135,11 +137,39 @@ const handlePayPalWebhook = async (req, res) => {
                 )
             }
         }
+
+        // ── Subscription cancelled ──
+        if (event.event_type === 'BILLING.SUBSCRIPTION.CANCELLED') {
+            const subscriptionId = event.resource?.id
+            if (subscriptionId) {
+
+                // Find the subscription so we can get the user id
+                const subscription = await Subscription.findOne({ paypalSubscriptionId: subscriptionId })
+
+                if (subscription) {
+                    // Remove the subscription document
+                    await Subscription.deleteOne({ paypalSubscriptionId: subscriptionId })
+
+                    // Lock the user out of claims
+                    await User.findByIdAndUpdate(subscription.user, {
+                        subscription_plan:      'starter',
+                        monthly_claim_limit:    0,
+                        paypalSubscriptionId:   null,
+                        billing_cycle_start:    null,
+                        billing_cycle_end:      null,
+                        claims_used_this_month: 0, 
+                    })
+                }
+            }
+        }
+
         res.status(200).json({ received: true })
+
     } catch (err) {
         console.error('Webhook error:', err.message)
         res.status(500).json({ message: 'Webhook error' })
     }
 }
+
 
 module.exports = { getPlanId, confirmSubscription, handlePayPalWebhook }

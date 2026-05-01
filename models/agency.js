@@ -13,6 +13,8 @@ const agencySchema = new mongoose.Schema({
     subscription_end_date:   { type: Date },
     tax_id:{type:String},
     contact_email: { type: String },
+    subscription_status:     { type: String, enum: ['active', 'cancelled', 'expired'], default: 'active' },
+    paypalSubscriptionId:    { type: String },
 contact_phone: { type: String },
     is_active:               { type: Boolean, default: true },
     

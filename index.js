@@ -12,7 +12,7 @@ const businessAccountRoutes=require('./routes/account')
 require('dotenv').config();
 const connection = require('./connection/connection');
 const { Message, ChatRoom } = require('./models/chat');
-
+const subscriptionReset=require('./util/subscriptionreset')
 const app = express();
 const server = http.createServer(app); // ← wrap express in http server
 
@@ -95,5 +95,7 @@ io.on('connection', (socket) => {
 
 // Export io so chat controller can emit file-upload messages too
 module.exports.io = io;
+
+subscriptionReset
 
 server.listen(5000, () => console.log('Server running on port 5000'));

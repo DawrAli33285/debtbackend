@@ -12,6 +12,7 @@ billing_cycle_start:      { type: Date },
 billing_cycle_end:        { type: Date },
 terms_accept:{type:Boolean,default:false},
 signature_name:   { type: String },
+paypalSubscriptionId: { type: String },
 accepted_at:      { type: Date },
 ein:{type:String}
   }, { timestamps: true });

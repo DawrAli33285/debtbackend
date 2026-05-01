@@ -43,7 +43,7 @@ const cancelPayPalSubscription = async (token, subscriptionId) => {
 
 const calculatePeriodEnd = () => {
     const date = new Date()
-    date.setDate(date.getDate() + 1) // 1 day for testing
+    date.setMonth(date.getMonth() + 1)
     return date
 }
 
@@ -132,9 +132,12 @@ const confirmSubscription = async (req, res) => {
 }
 
 // ── WEBHOOK ──
+// ── WEBHOOK ──
 const handlePayPalWebhook = async (req, res) => {
     try {
         const event = req.body
+
+        // ── Subscription activated ──
         if (event.event_type === 'BILLING.SUBSCRIPTION.ACTIVATED') {
             const subscriptionId = event.resource?.id
             if (subscriptionId) {
@@ -144,11 +147,32 @@ const handlePayPalWebhook = async (req, res) => {
                 )
             }
         }
+
+        // ── Subscription cancelled ──
+        if (event.event_type === 'BILLING.SUBSCRIPTION.CANCELLED') {
+            const subscriptionId = event.resource?.id
+            if (subscriptionId) {
+
+                await Agency.findOneAndUpdate(
+                    { paypalSubscriptionId: subscriptionId },
+                    {
+                        plan_type:               'starter',  // ✅ valid enum in Agency
+                        claim_limit:             0,          // ✅ blocks all claims
+                        claims_used:             0,          // ✅ field exists in Agency
+                        subscription_status:     'cancelled',// ✅ field exists in Agency
+                        paypalSubscriptionId:    null,       // ✅ field exists in Agency
+                        subscription_start_date: null,       // ✅ field exists in Agency
+                        subscription_end_date:   null,       // ✅ field exists in Agency
+                    }
+                )
+            }
+        }
+
         res.status(200).json({ received: true })
+
     } catch (err) {
         console.error('Webhook error:', err.message)
         res.status(500).json({ message: 'Webhook error' })
     }
 }
-
 module.exports = { getPlanId, confirmSubscription, handlePayPalWebhook }
