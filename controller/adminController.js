@@ -693,7 +693,7 @@ module.exports.adminLogin = async (req, res) => {
     try {
       const claim = await Claim.findByIdAndUpdate(
         req.params.id,
-        { status: 'connection_denied' },
+        { status: 'connection_denied' ,adminDenied:true,adminDeniedAgency:true},
         { new: true }
       ).populate('user_id', 'business_name email');
   

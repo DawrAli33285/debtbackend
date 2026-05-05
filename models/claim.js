@@ -7,6 +7,8 @@ const claimSchema = new mongoose.Schema({
     debtor_email:   { type: String },
     debtor_phone:   { type: String },
     debtor_address: { type: String },
+    adminDenied:{type:Boolean,default:false},
+    adminDeniedAgency:{type:Boolean,default:false},
     amount:         { type: Number },
     due_date:       { type: Date },
     description:    { type: String },

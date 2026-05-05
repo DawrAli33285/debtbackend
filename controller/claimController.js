@@ -449,6 +449,24 @@ exports.getClaimById = async (req, res) => {
   }
 };
 
+exports.updateClaimPopup = async (req, res) => {
+  try {
+   
+
+    const claim = await Claim.findOne({ _id: req.params.id, user_id: req.user.id });
+    if (!claim) return res.status(404).json({ message: 'Claim not found or unauthorized' });
+
+ 
+ claim.adminDenied=false
+
+    await claim.save();
+    res.json({ claim });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 exports.updateClaim = async (req, res) => {
   try {
     const {
@@ -539,3 +557,18 @@ const STATUS_LABELS = {
   denied:             'Denied by Agency',
   closed:             'Closed',
 };
+
+exports.getClaimsDeniedByAdmin = async (req, res) => {
+  try {
+    let claim = await Claim.findOne({ 
+      user_id: req.user.id,  // ✅ use req.user instead of req.agencyUser
+      adminDenied: true 
+    });
+
+    return res.status(200).json({ claim });
+  } catch (e) {
+    console.log("ERROR OF IS")
+    console.log(e.message);
+    res.status(500).json({ message: 'Server error' });
+  }
+}
