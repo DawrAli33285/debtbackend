@@ -23,8 +23,25 @@ const io = new Server(server, {
   },
 });
 
-app.use(express.json());
 app.use(cors());
+
+app.use((req, res, next) => {
+  if (req.originalUrl === '/subscription/webhook' || 
+      req.originalUrl === '/businessSubscription/webhook') {
+    next()
+  } else {
+    express.json()(req, res, next)
+  }
+})
+app.use((req, res, next) => {
+  if (req.originalUrl === '/subscription/webhook' || 
+      req.originalUrl === '/businessSubscription/webhook') {
+    express.raw({ type: 'application/json' })(req, res, next)
+  } else {
+    next()
+  }
+})
+
 connection;
 
 app.use('/uploads', express.static('/tmp/public/files/files'));
