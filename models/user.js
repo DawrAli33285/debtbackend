@@ -6,7 +6,7 @@ const userSchema = new mongoose.Schema({
     email:         { type: String, required: true, unique: true },
     password_hash: { type: String, required: true },
     subscription_plan: { type: String, enum: ['starter', 'growth', 'unlimited', 'enterprise'], default: 'starter' },
-monthly_claim_limit:      { type: Number, default: 3 },
+monthly_claim_limit:      { type: Number, default: 1 },
 claims_used_this_month:   { type: Number, default: 0 },
 billing_cycle_start:      { type: Date },
 billing_cycle_end:        { type: Date },

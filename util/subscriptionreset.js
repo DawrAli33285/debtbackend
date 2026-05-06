@@ -23,59 +23,32 @@ const AGENCY_PLAN_CLAIM_LIMITS = {
 }
 
 // ── Runs every hour ──
+// ── Runs every hour — safety net only, webhooks do the real work ──
 cron.schedule('0 * * * *', async () => {
     console.log(`[CRON] Running subscription check at ${new Date().toISOString()}`)
 
     const now = new Date()
+    const gracePeriod = new Date(now - 24 * 60 * 60 * 1000) // 24hr grace window
 
     try {
         // ────────────────────────────────────────────────
-        // USERS — reset monthly_claim_limit if still active
+        // USERS — expire if billing_cycle_end passed 24hrs ago and webhook never fired
         // ────────────────────────────────────────────────
-        const activeUsers = await User.find({
-            billing_cycle_end:   { $gt: now },   // subscription hasn't ended
-            paypalSubscriptionId: { $ne: null },  // has an active paypal sub
-        })
-
-        for (const user of activeUsers) {
-            const correctLimit = PLAN_CLAIM_LIMITS[user.subscription_plan]
-
-            if (correctLimit === undefined) {
-                console.warn(`[CRON] Unknown plan "${user.subscription_plan}" for user ${user._id}`)
-                continue
-            }
-
-            // Only update if limit was wrongly reduced (e.g. after failed payment)
-            if (user.monthly_claim_limit !== correctLimit) {
-                await User.findByIdAndUpdate(user._id, {
-                    monthly_claim_limit: correctLimit,
-                })
-                console.log(`[CRON] Restored claim limit for user ${user._id} → ${correctLimit}`)
-            }
-        }
-
-        // ────────────────────────────────────────────────
-        // USERS — expire if billing_cycle_end has passed
-        // ────────────────────────────────────────────────
-        const expiredUsers = await User.find({
-            billing_cycle_end:    { $lte: now },
-            paypalSubscriptionId: { $ne: null },
-            monthly_claim_limit:  { $gt: 0 },    // not already locked out
-        })
-
-        for (const user of expiredUsers) {
-            await User.findByIdAndUpdate(user._id, {
+        const result = await User.updateMany(
+            {
+                billing_cycle_end:    { $lte: gracePeriod },
+                paypalSubscriptionId: { $ne: null },
+            },
+            {
+                subscription_plan:      'starter',
                 monthly_claim_limit:    0,
                 claims_used_this_month: 0,
                 paypalSubscriptionId:   null,
                 billing_cycle_start:    null,
                 billing_cycle_end:      null,
-                subscription_plan:      'starter',
-            })
-            console.log(`[CRON] Expired subscription for user ${user._id}`)
-        }
-
-        console.log(`[CRON] Users processed — active: ${activeUsers.length}, expired: ${expiredUsers.length}`)
+            }
+        )
+        console.log(`[CRON] Users expired: ${result.modifiedCount}`)
 
     } catch (err) {
         console.error('[CRON] Error processing users:', err.message)
@@ -83,40 +56,14 @@ cron.schedule('0 * * * *', async () => {
 
     try {
         // ────────────────────────────────────────────────
-        // AGENCIES — restore claim_limit if still active
+        // AGENCIES — expire if subscription_end_date passed 24hrs ago and webhook never fired
         // ────────────────────────────────────────────────
-        const activeAgencies = await Agency.find({
-            subscription_end_date: { $gt: now },
-            paypalSubscriptionId:  { $ne: null },
-        })
-
-        for (const agency of activeAgencies) {
-            const correctLimit = AGENCY_PLAN_CLAIM_LIMITS[agency.plan_type]
-
-            if (correctLimit === undefined) {
-                console.warn(`[CRON] Unknown plan "${agency.plan_type}" for agency ${agency._id}`)
-                continue
-            }
-
-            if (agency.claim_limit !== correctLimit) {
-                await Agency.findByIdAndUpdate(agency._id, {
-                    claim_limit: correctLimit,
-                })
-                console.log(`[CRON] Restored claim limit for agency ${agency._id} → ${correctLimit}`)
-            }
-        }
-
-        // ────────────────────────────────────────────────
-        // AGENCIES — expire if subscription_end_date has passed
-        // ────────────────────────────────────────────────
-        const expiredAgencies = await Agency.find({
-            subscription_end_date: { $lte: now },
-            paypalSubscriptionId:  { $ne: null },
-            claim_limit:           { $gt: 0 },
-        })
-
-        for (const agency of expiredAgencies) {
-            await Agency.findByIdAndUpdate(agency._id, {
+        const result = await Agency.updateMany(
+            {
+                subscription_end_date: { $lte: gracePeriod },
+                paypalSubscriptionId:  { $ne: null },
+            },
+            {
                 plan_type:               'starter',
                 claim_limit:             0,
                 claims_used:             0,
@@ -124,11 +71,9 @@ cron.schedule('0 * * * *', async () => {
                 paypalSubscriptionId:    null,
                 subscription_start_date: null,
                 subscription_end_date:   null,
-            })
-            console.log(`[CRON] Expired subscription for agency ${agency._id}`)
-        }
-
-        console.log(`[CRON] Agencies processed — active: ${activeAgencies.length}, expired: ${expiredAgencies.length}`)
+            }
+        )
+        console.log(`[CRON] Agencies expired: ${result.modifiedCount}`)
 
     } catch (err) {
         console.error('[CRON] Error processing agencies:', err.message)

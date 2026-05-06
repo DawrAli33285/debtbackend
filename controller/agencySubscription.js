@@ -148,6 +148,23 @@ const handlePayPalWebhook = async (req, res) => {
             }
         }
 
+        if (event.event_type === 'BILLING.SUBSCRIPTION.RENEWED' ||
+            event.event_type === 'PAYMENT.SALE.COMPLETED') {
+            const subscriptionId = event.resource?.billing_agreement_id || event.resource?.id
+            if (subscriptionId) {
+                const periodEnd = calculatePeriodEnd()
+                await Agency.findOneAndUpdate(
+                    { paypalSubscriptionId: subscriptionId },
+                    {
+                        claims_used:             0,
+                        subscription_start_date: new Date(),
+                        subscription_end_date:   periodEnd,
+                    }
+                )
+            }
+        }
+
+        
         // ── Subscription cancelled ──
         if (event.event_type === 'BILLING.SUBSCRIPTION.CANCELLED') {
             const subscriptionId = event.resource?.id
