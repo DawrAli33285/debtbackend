@@ -125,8 +125,7 @@ const confirmSubscription = async (req, res) => {
 // ── WEBHOOK ──
 const handlePayPalWebhook = async (req, res) => {
     try {
-        const event = req.body
-
+        const event = Buffer.isBuffer(req.body) ? JSON.parse(req.body.toString()) : req.body
         // ── Subscription activated ──
         if (event.event_type === 'BILLING.SUBSCRIPTION.ACTIVATED') {
             const subscriptionId = event.resource?.id
@@ -143,20 +142,30 @@ const handlePayPalWebhook = async (req, res) => {
             const subscriptionId = event.resource?.billing_agreement_id || event.resource?.id
             if (subscriptionId) {
                 const periodEnd = calculatePeriodEnd()
-                await User.findOneAndUpdate(
-                    { paypalSubscriptionId: subscriptionId },
-                    {
-                        claims_used_this_month: 0,
-                        billing_cycle_start:    new Date(),
-                        billing_cycle_end:      periodEnd,
+                const user = await User.findOne({ paypalSubscriptionId: subscriptionId })
+                if (user) {
+                    console.log('[Webhook] user found, current limit:', user.monthly_claim_limit, 'plan:', user.subscription_plan)
+                    const PLAN_CLAIM_LIMITS = {
+                        starter:   3,
+                        growth:    10,
+                        unlimited: 999999,
                     }
-                )
+                    await User.findOneAndUpdate(
+                        { paypalSubscriptionId: subscriptionId },
+                        {
+                            claims_used_this_month: 0,
+                            monthly_claim_limit: user.monthly_claim_limit + (PLAN_CLAIM_LIMITS[user.subscription_plan] ?? 0),
+                            billing_cycle_start:    new Date(),
+                            billing_cycle_end:      periodEnd,
+                        }
+                    )
+                }
             }
         }
         
         // ── Subscription cancelled ──
         if (event.event_type === 'BILLING.SUBSCRIPTION.CANCELLED') {
-            const subscriptionId = event.resource?.id
+            const subscriptionId = event.resource?.billing_agreement_id || event.resource?.id
             if (subscriptionId) {
 
                 // Find the subscription so we can get the user id

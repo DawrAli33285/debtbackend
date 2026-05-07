@@ -135,7 +135,7 @@ const confirmSubscription = async (req, res) => {
 // ── WEBHOOK ──
 const handlePayPalWebhook = async (req, res) => {
     try {
-        const event = req.body
+        const event = Buffer.isBuffer(req.body) ? JSON.parse(req.body.toString()) : req.body
 
         // ── Subscription activated ──
         if (event.event_type === 'BILLING.SUBSCRIPTION.ACTIVATED') {
@@ -153,21 +153,31 @@ const handlePayPalWebhook = async (req, res) => {
             const subscriptionId = event.resource?.billing_agreement_id || event.resource?.id
             if (subscriptionId) {
                 const periodEnd = calculatePeriodEnd()
-                await Agency.findOneAndUpdate(
-                    { paypalSubscriptionId: subscriptionId },
-                    {
-                        claims_used:             0,
-                        subscription_start_date: new Date(),
-                        subscription_end_date:   periodEnd,
+                const agency = await Agency.findOne({ paypalSubscriptionId: subscriptionId })
+                if (agency) {
+                    const PLAN_CLAIM_LIMITS = {
+                        starter:      25,
+                        growth:       75,
+                        professional: 150,
+                        enterprise:   999999,
                     }
-                )
+                    await Agency.findOneAndUpdate(
+                        { paypalSubscriptionId: subscriptionId },
+                        {
+                            claims_used:             0,
+                            claim_limit:             agency.claim_limit + (PLAN_CLAIM_LIMITS[agency.plan_type] ?? 0),
+                            subscription_start_date: new Date(),
+                            subscription_end_date:   periodEnd,
+                        }
+                    )
+                }
             }
         }
 
         
         // ── Subscription cancelled ──
         if (event.event_type === 'BILLING.SUBSCRIPTION.CANCELLED') {
-            const subscriptionId = event.resource?.id
+            const subscriptionId = event.resource?.billing_agreement_id || event.resource?.id
             if (subscriptionId) {
 
                 await Agency.findOneAndUpdate(
