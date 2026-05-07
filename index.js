@@ -26,16 +26,23 @@ const io = new Server(server, {
 app.use(cors());
 
 app.use((req, res, next) => {
-  if (req.originalUrl === '/subscription/webhook' || 
-      req.originalUrl === '/businessSubscription/webhook') {
+  const isWebhook = 
+    req.originalUrl.includes('/subscription/webhook') || 
+    req.originalUrl.includes('/businessSubscription/webhook')
+
+  if (isWebhook) {
     next()
   } else {
     express.json()(req, res, next)
   }
 })
+
 app.use((req, res, next) => {
-  if (req.originalUrl === '/subscription/webhook' || 
-      req.originalUrl === '/businessSubscription/webhook') {
+  const isWebhook = 
+    req.originalUrl.includes('/subscription/webhook') || 
+    req.originalUrl.includes('/businessSubscription/webhook')
+
+  if (isWebhook) {
     express.raw({ type: 'application/json' })(req, res, next)
   } else {
     next()
