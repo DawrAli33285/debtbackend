@@ -43,7 +43,7 @@ const cancelPayPalSubscription = async (token, subscriptionId) => {
 
 const calculatePeriodEnd = () => {
     const date = new Date()
-    date.setMonth(date.getMonth() + 1)
+    date.setFullYear(date.getFullYear() + 1)
     return date
 }
 
@@ -117,6 +117,7 @@ const confirmSubscription = async (req, res) => {
             subscription_start_date: new Date(),
             subscription_end_date:   periodEnd,
             paypalSubscriptionId:    subscriptionId,
+            subscription_status:     'active',
         })
 
         return res.status(200).json({
