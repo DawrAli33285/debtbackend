@@ -7,7 +7,7 @@ const agencySchema = new mongoose.Schema({
     fee_percentage: { type: Number },
     is_verified:    { type: Boolean, default: false },
     plan_type:               { type: String, enum: ['starter', 'growth', 'professional', 'enterprise'], default: 'starter' },
-    claim_limit:             { type: Number, default: 25 },
+    claim_limit:             { type: Number, default: 1 },
     claims_used:             { type: Number, default: 0 },
     subscription_start_date: { type: Date },
     subscription_end_date:   { type: Date },
